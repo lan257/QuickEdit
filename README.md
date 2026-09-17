@@ -1,91 +1,216 @@
 # QuickEdit
 
-QuickEdit 是一个 Windows 优先、轻量、本地文件编辑与阅读工作区：在单个窗口内管理 Workspace 文件夹、编辑文本与 Markdown、编辑 Excel、阅读 PDF/DOCX，并支持伴随式批注、文档内查找/替换和外部终端拉起。
+QuickEdit 是一个面向 Windows 的轻量级本地文件编辑与阅读工作台，目标不是做一个“大而全”的办公套件，而是把常见的“资料整理 + 文档快速处理 + 本地知识工作”串起来，放进一个单窗口、低干扰、可本地运行的应用里。
 
-- 当前版本：`0.1.0`（V1 稳定版候选；`1.0.0` 定版待确认）
-- 技术栈：Tauri v2 + Vite + vanilla TypeScript/HTML/CSS + Rust
-- 应用标识：`com.quickedit.desktop`
-- 纯本地文件操作，无网络功能；所有文件系统读写统一经过 Rust command 层
+它强调三件事：
 
-## 功能概览（V1 稳定版）
+- 本地优先：所有文件都在本机处理，不依赖云端同步，不追求在线协作
+- 轻量高效：适合一次打开一个工作目录，快速浏览、搜索、编辑和阅读文件
+- 单窗口工作流：文本、Markdown、Excel、PDF、DOCX 都尽量在同一套入口下完成
 
-| 类别 | 能力 |
-|---|---|
-| Workspace | 打开文件夹只读元数据，选中文件才加载正文；搜索过滤；从列表移除不删除磁盘文件 |
-| 文本 / Markdown | UTF-8 / UTF-8 BOM / UTF-16，默认 1MB 上限，编辑、保存、外部修改检测；Markdown 编辑/预览双模式（预览不修改原文） |
-| Excel (XLSX) | Sheet 切换、基础单元格编辑与保存 |
-| PDF / DOCX | 只读阅读，支持批注 |
-| 批注 | 保存为原文件同目录伴生 `.qnote` 文件，不写入原文件；支持全文、文本选区、PDF 页、Excel 单元格、Markdown 预览选区 |
-| 查找 / 替换 | `Ctrl+F` 查找、`Ctrl+H` 替换；上一个/下一个、匹配大小写、单次/全部替换；不影响文档 dirty 状态 |
-| 状态栏 | 当前行号（文本）、当前单元格（Excel `Sheet!Cell`）、当前页（PDF） |
-| Terminal | `Ctrl+`` 或右键菜单拉起外部 `cmd.exe`（独立控制台窗口）；cwd 规则：Workspace 根目录 / 单文件所在目录 / 用户主目录 |
-| 交互 | 右键"复制文件路径"或点击文件元信息复制完整路径；`F2` 重命名文件或文件夹 |
-| 设置 | 分组设置弹窗（卡片布局、单滚动区、底部操作固定）；浅色主题持久化；深色主题点击提示"暂不支持，已排入 V2" |
-| Windows 集成 | 单实例 + 命令行参数转发、资源管理器右键 / Open With 注册（安装钩子） |
+如果你在本地管理大量文档、脚本、笔记、表格和资料，QuickEdit 是一个更贴近“个人知识工作台”的工具，而不是通用桌面办公软件。
 
-## 目录结构
+## 一、定位：什么是 QuickEdit
 
-```
-queryedit/
-├── index.html              # 主界面单页
-├── src/
-│   ├── main.ts             # 全部 UI / 状态逻辑（查找替换层、批注、主题、终端拉起）
-│   ├── styles.css          # 样式（查找栏、菜单、设置卡片、批注浮层等）
-│   └── QuickEdit_Config_Help.md   # 应用内只读帮助（markdown-it 渲染）
-├── src-tauri/
-│   ├── src/lib.rs          # Rust command 层（21 个命令、原子写、编码、Shell 集成）
-│   ├── tauri.conf.json     # 应用配置（标识、窗口、打包、NSIS 钩子）
-│   ├── capabilities/default.json  # 权限（窗口 + 剪贴板写文本）
-│   └── windows/installer-hooks.nsh # 安装/卸载 Shell 注册钩子
-├── docs/                   # 执行与计划文档
-├── 设计文档/                # 需求规格、设计、HTML Terminal 设计、Markdown 扩展设计
-└── .dsh/scratch/           # 会话临时产物（不纳入版本管理）
-```
+QuickEdit 的定位可以概括为：
 
-## 开发
+> 一个 Windows 优先的本地文件阅读与快速编辑工作区。
 
-前置条件：Node.js + pnpm、Rust（`cargo`）。若终端提示 `cargo: program not found`，将 `%USERPROFILE%\.cargo\bin` 加入 PATH（cmd 下：`set PATH=%PATH%;C:\Users\29812\.cargo\bin`；PowerShell 下：`$env:PATH += ";C:\Users\29812\.cargo\bin"`）。
+它更适用于以下场景：
+
+- 你有一个 Workspace 文件夹，里面存放了大量文档、Markdown、表格、资料
+- 你需要快速打开、过滤、搜索、查看文件，而不是启动一整套复杂办公软件
+- 你需要对文本、Markdown、Excel、PDF/DOCX 进行日常阅读和小规模修改
+- 你希望批注、索引、查找替换、终端入口都集中在一个界面中
+- 你更在意“本地文件安全”和“低侵入工作流”，而不是网络协作
+
+换句话说，QuickEdit 不是“写作软件”，也不是“办公软件”，而是“本地资料工作台”：更像一个适合个人、工程、研究、资料整理场景的桌面型文件操作中心。
+
+## 二、核心价值
+
+### 1. 把多种文件类型放进同一套工作流
+
+QuickEdit 支持：
+
+- 文本文件编辑
+- Markdown 编辑和预览
+- Excel 表格查看/修改
+- PDF 阅读
+- DOCX 阅读
+- 文件级批注与标注
+
+这些能力不是简单堆叠，而是围绕“工作区 + 文件浏览 + 读写 + 批注 + 搜索”这一主线组织起来，减少工具切换带来的干扰。
+
+### 2. 本地文件优先，降低使用门槛
+
+QuickEdit 的设计目标不是“云端编辑”，而是让你在本地工作目录中以最直接的方式完成：
+
+- 打开文件夹
+- 发现文件
+- 过滤搜索
+- 读取正文
+- 快速修改
+- 保存副本/伴生批注
+
+所有文件操作都在本地进行，且统一经过 Rust 层处理，保证更稳定、更可控。
+
+### 3. 面向“高频小改动”而非“重量套件”
+
+QuickEdit 最适合：
+
+- 调整 Markdown 文档
+- 浏览/修正文本
+- 处理 Excel 小表格
+- 批注 PDF 或 DOCX
+- 在一个地方管理资料和笔记
+
+它不追求替代完整的 Office、IDE 或文档平台，而是强调“用最小成本完成最常见的内容处理任务”。
+
+## 三、主要能力
+
+### Workspace / 文件管理
+
+- 打开本地工作目录
+- 只读展示文件元信息
+- 仅在选中文件时加载正文内容
+- 搜索和过滤文件列表
+- 从列表移除不影响磁盘文件
+- 支持文件/文件夹重命名
+
+### 文本与 Markdown
+
+- 支持 UTF-8 / UTF-8 BOM / UTF-16
+- 支持文本编辑与保存
+- 检测外部文件修改
+- Markdown 编辑模式 / 预览模式分离
+- 预览不会直接写回原文
+
+### Excel
+
+- XLSX 文件的 Sheet 切换
+- 基础单元格编辑
+- 保存回写
+
+### PDF / DOCX
+
+- 只读浏览
+- 支持批注
+- 结合工作区中的资料阅读场景使用
+
+### 批注系统
+
+- 批注以伴生 `.qnote` 文件形式保存
+- 不直接修改原文件内容
+- 支持全文、文本选区、PDF 页、Excel 单元格、Markdown 预览选区等注释场景
+
+### 查找 / 替换
+
+- `Ctrl+F` 查找
+- `Ctrl+H` 替换
+- 跳转上一个/下一个命中项
+- 区分大小写
+- 支持单次或全部替换
+- 不影响文档 dirty 状态
+
+### 终端与系统集成
+
+- 一键拉起外部 `cmd.exe`
+- 根据当前文件或工作目录合理设置 `cwd`
+- 支持单实例运行与命令行参数转发
+- 支持资源管理器右键菜单 / Open With 集成
+
+## 四、适合谁使用
+
+QuickEdit 比较适合：
+
+- 个人知识管理用户
+- 研究、文档整理、资料阅读人群
+- 需要快速处理本地 Markdown / 文本 / Excel / PDF 的用户
+- 偏好“本地工作流”而不想依赖云端或浏览器的人
+- 需要在一个窗口中以低干扰方式处理日常文件内容的人
+
+不太适合：
+
+- 需要大型团队协作编辑的场景
+- 复杂企业办公流程管理
+- 需要多端同步与多人协作的云文档系统
+- 需要完整的 Office/设计/开发辅助功能的重型工作台
+
+## 五、技术实现
+
+QuickEdit 基于现代桌面应用技术栈：
+
+- Tauri v2
+- Vite
+- TypeScript + HTML + CSS
+- Rust
+
+其中：
+
+- 前端负责界面与交互
+- Rust 负责本地文件系统访问、编码处理、命令封装和安全边界
+- 目标是让本地文件操作更稳定、更统一、更符合桌面应用要求
+
+## 六、快速开始
+
+### 环境要求
+
+- Node.js
+- pnpm
+- Rust / cargo
+
+### 安装与运行
 
 ```powershell
 pnpm install
-pnpm tauri dev     # 开发运行（Vite 端口 1420）
+pnpm tauri dev
+```
 
-# 前端单独构建 / 类型检查
+### 前端构建
+
+```powershell
 pnpm build
+```
 
-# Rust 单元测试（6 个用例：编码、路径、默认配置、旧版 .qnote 兼容）
+### Rust 测试
+
+```powershell
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-## 发布打包
+### 打包发布
 
 ```powershell
 pnpm tauri build
-# 产物：src-tauri/target/release/bundle/msi/QuickEdit_<ver>_x64_en-US.msi
-#       src-tauri/target/release/bundle/nsis/QuickEdit_<ver>_x64-setup.exe
 ```
 
-安装包包含 NSIS 安装/卸载 Shell 注册钩子（资源管理器右键 / Open With）。
+## 七、项目结构
 
-## 文档索引
+```text
+QuickEdit/
+├── index.html              # 主界面
+├── src/                    # 前端代码
+│   ├── main.ts             # UI / 状态逻辑
+│   ├── styles.css          # 样式
+│   └── QuickEdit_Config_Help.md
+├── src-tauri/              # Rust 后端与桌面集成
+│   ├── src/lib.rs
+│   ├── tauri.conf.json
+│   └── windows/
+├── docs/                   # 开发与执行文档
+├── 设计文档/                # 需求与设计文档
+└── README.md
+```
 
-| 文档 | 说明 |
-|---|---|
-| `docs/QuickEdit_Development_v1.md` | 开发文档：架构、命令清单、关键实现、构建与验证流程、已知坑 |
-| `docs/QuickEdit_Undeveloped_v2.md` | 待开发文档：v2.0+ backlog（基于 2026-09-17 三份设计文档，旧 `_v1` 版已废弃） |
-| `docs/QuickEdit_V1_Stable_V2_Plan_v1.md` | V1 稳定版实施计划与 V2 排期（v1.2，V2 明细以设计文档与待开发文档为准） |
-| `docs/QuickEdit_Execution_Roadmap_v1.md` | P0–P5 执行路线图（v1.15） |
-| `src/QuickEdit_Config_Help.md` | 应用内只读帮助（Logo 菜单 → 帮助） |
-| `设计文档/QuickEdit_Requirements_Specification.md` | 需求规格 |
-| `设计文档/QuickEdit_Design_Document.md` | 设计文档 |
-| `设计文档/QuickEdit_HTML_Terminal_Requirements_Design.md` | HTML/Terminal 需求设计（V2 参考） |
-| `设计文档/QuickEdit_Post_Markdown_Requirements_Design.md` | Markdown 后需求设计 |
-| `设计文档/QuickEdit_v2_Plus_Requirements_Design_Roadmap.md` | v2.0+ 需求设计与演进规划（Draft） |
-| `设计文档/QuickEdit_Annotation_V2_Requirements_Design.md` | Annotation V2 需求设计（Draft） |
-| `设计文档/QuickEdit_Agent_Change_Review_MCP_Requirements_Design.md` | Agent Change Review & MCP 需求设计（Draft） |
+## 八、版本状态
 
-## 版本状态
+- 当前版本：`0.1.0`
+- 目标：形成 V1 稳定版候选能力
+- 后续规划：围绕 V2 迭代，继续扩展更强的工作流、编辑体验和系统集成能力
 
-- `0.1.0`：V1 稳定版候选（功能完成、候选 MSI/NSIS 已生成、回归验证中）
-- `1.0.0`：定版（待版本号确认后重新打包 + 版本说明 + Git 基线标签）
-- v2.0+ 内容见 `docs/QuickEdit_Undeveloped_v2.md`
+## 九、一句话总结
+
+QuickEdit 不是为了替代整个办公系统，而是为了让“本地文件工作”更轻、快、顺、更集中：
+
+它就是一个面向 Windows 的本地资料工作台，用于快速阅读、批注、编辑和管理文本、Markdown、Excel、PDF 与 DOCX。
+
