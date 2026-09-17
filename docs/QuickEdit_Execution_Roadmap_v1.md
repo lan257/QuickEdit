@@ -1,6 +1,6 @@
 # 需求路线图：QuickEdit V1 本地文件工作区
 
-版本：v1.15 ｜ 用户确认：本轮 ｜ 依据：`设计文档/QuickEdit_Requirements_Specification.md`、`设计文档/QuickEdit_Design_Document.md`、`设计文档/QuickEdit_Markdown_Preview_Requirements_Design.md`、`设计文档/QuickEdit_HTML_Terminal_Requirements_Design.md`、V1 稳定版计划 `docs/QuickEdit_V1_Stable_V2_Plan_v1.md`（v1.2）、v2.0+ 设计文档（`QuickEdit_v2_Plus_Requirements_Design_Roadmap.md`、`QuickEdit_Annotation_V2_Requirements_Design.md`、`QuickEdit_Agent_Change_Review_MCP_Requirements_Design.md`）、待开发文档 `docs/QuickEdit_Undeveloped_v2.md`、P5 交互审查意见
+版本：v1.16 ｜ 用户确认：本轮 ｜ 依据：`设计文档/QuickEdit_Requirements_Specification.md`、`设计文档/QuickEdit_Design_Document.md`、`设计文档/QuickEdit_Markdown_Preview_Requirements_Design.md`、`设计文档/QuickEdit_HTML_Terminal_Requirements_Design.md`、V1 稳定版计划 `docs/QuickEdit_V1_Stable_V2_Plan_v1.md`（v1.2）、v2.0+ 设计文档（`QuickEdit_v2_Plus_Requirements_Design_Roadmap.md`、`QuickEdit_Annotation_V2_Requirements_Design.md`、`QuickEdit_Agent_Change_Review_MCP_Requirements_Design.md`）、待开发文档 `docs/QuickEdit_Undeveloped_v2.md`、P5 交互审查意见
 
 ## 1. 需求一句话（≤3 行）
 
@@ -28,6 +28,8 @@
 - 性能基准（P4 实测）：500 文件目录枚举 45ms；文本打开 4ms；保存 169ms（含写穿落盘）；元数据 3ms；界面全程响应。
 - 异常恢复（P4/P5 实测）：损坏 config.json → `INVALID_JSON`；损坏 qnote → 原文件备份并新建；打开文件被外部删除 → `STAT_FAILED` 且页面存活；外部修改保存 → `EXTERNAL_MODIFICATION`。
 - 交互修复：✅ Markdown 默认预览且可返回编辑；PDF 改为连续纵向滚动；窗口控制区顶部贴边；批注浮标随面板开关；后缀正则、文件夹重命名、搜索/排序、原生右键等均已修复/落地。
+- 交互修复（2026-09-17 本轮）：✅ 右键/新建菜单改为在鼠标位置弹出（不再固定于行下方）；新建文档默认编辑模式；设置页勾选框改为开关样式；修复编辑模式"当前选区"批注在点击文档后重置为全文的 bug（编辑选区快照：选区折叠时保留、重新选择时更新、编辑内容后失效）；应用内帮助同步更新。均经 dev CDP 实测。
+- 交互修复（2026-09-17 本轮②）：✅ 消息 Toast 移到内容区顶部"编辑|预览"工具条行内水平居中（原右下角位置会遮住批注浮标/终端按钮），并新增 × 关闭按钮、取消 2.6s 自动消失；批注浮标 `bottom: 18px → 50px`（上移一个状态栏行），不再遮挡内置终端按钮。均经无头 CDP 布局断言实测（Toast 行内居中 0px 偏差、与终端/批注按钮零重叠）。
 - 功能现状：P0–P5 已完成；V1 稳定版新功能（查找替换/设置/帮助/浅色主题/路径复制/当前行/预览选区批注/外部 Terminal）已实现并实测，候选 MSI/NSIS 已生成；v2.0+ 排期已改为以 2026-09-17 三份设计文档为准（Recovery/Annotation V2/PreviewCapability → v2.0；图片/XLSX 虚拟化/OpenMode → v2.1；PPTX/工作区搜索/Change Review/MCP → v2.2），完整暗色主题保持用户确认的暂缓状态；单一入口见 `docs/QuickEdit_Undeveloped_v2.md`。
 - 可修改性：✅ `E:\Private\queryedit` 可写；源码位于 `src/`、`src-tauri/`；Git 仓库已初始化（尚未首次提交）。
 - 可测试性：✅ Node/pnpm、MSVC Build Tools、WebView2、Tauri CLI 和 Rust MSVC toolchain 已具备；`cargo check`、6 项 `cargo test`、P0–P5 `pnpm build` 和隔离 P5 `pnpm tauri build` 均通过；P5 交互/批注/连续 PDF 回归有证据。MSVC rustfmt 组件仍未安装，格式检查由 GNU rustfmt 完成。

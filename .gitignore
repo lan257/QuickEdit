@@ -11,11 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-<<<<<<< Updated upstream
-=======
-src-tauri/*
->>>>>>> Stashed changes
-
 # Rust build output
 src-tauri/target/
 

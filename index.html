@@ -36,6 +36,7 @@
 
           <section id="workarea" class="workarea">
             <div class="content">
+              <div id="toast" class="toast hidden" role="status" aria-live="polite"><div class="toast-pill"><span id="toastMessage"></span><button id="toastClose" class="toast-close" type="button" aria-label="关闭提示">×</button></div></div>
               <div id="markdownModeBar" class="editor-toolbar markdown-mode-bar hidden"><span id="markdownBarLabel">Markdown</span><div class="editor-toolbar-right"><div id="markdownModeTabs" class="markdown-mode-tabs"><button id="markdownEditButton" class="mode-tab active" type="button">编辑</button><button id="markdownPreviewButton" class="mode-tab" type="button">预览</button></div></div></div>
               <div id="findBar" class="find-bar hidden"><div class="find-inputs"><input id="findInput" class="find-input" type="search" placeholder="查找当前文档" aria-label="查找当前文档" /><input id="replaceInput" class="find-input replace-input hidden" type="text" placeholder="替换为" aria-label="替换为" /></div><label class="find-case"><input id="findCaseInput" type="checkbox" /> 区分大小写</label><span id="findStatus" class="find-status"></span><button id="findPrevButton" class="find-btn" type="button" aria-label="上一个">↑</button><button id="findNextButton" class="find-btn" type="button" aria-label="下一个">↓</button><button id="replaceButton" class="find-btn replace-action hidden" type="button">替换</button><button id="replaceAllButton" class="find-btn replace-action hidden" type="button">全部替换</button><button id="findCloseButton" class="find-close" type="button" aria-label="关闭查找">×</button></div>
               <div id="emptyView" class="empty-view">
@@ -44,7 +45,23 @@
                 <span>打开文件夹只读取元数据，选中文档后才加载正文。</span>
               </div>
               <div id="loadingView" class="empty-view hidden"><div class="spinner"></div><strong>正在读取文档…</strong><span>正文按需加载，不扫描其他文件。</span></div>
-              <div id="textPane" class="editor-pane hidden">
+              <section id="folderInfoPane" class="folder-info-pane hidden" aria-label="文件夹信息">
+                 <div class="folder-info-card">
+                   <div class="folder-info-heading">
+                     <div class="folder-info-icon">DIR</div>
+                     <div><h2 id="folderInfoTitle">文件夹信息</h2><span id="folderInfoKind">文件夹</span></div>
+                   </div>
+                   <div class="folder-info-grid">
+                     <div class="folder-info-field"><span>名称</span><strong id="folderInfoName">—</strong></div>
+                     <div class="folder-info-field"><span>修改日期</span><strong id="folderInfoModified">—</strong></div>
+                     <div class="folder-info-field"><span>创建日期</span><strong id="folderInfoCreated">—</strong></div>
+                     <div class="folder-info-field folder-info-location"><span>位置</span><strong id="folderInfoLocation">—</strong></div>
+                     <div class="folder-info-field"><span>包含文件</span><strong id="folderInfoCount">0 个文件</strong></div>
+                   </div>
+                   <div class="folder-info-actions"><button id="folderTerminalButton" class="btn primary" type="button">⌨ 打开终端</button><button id="folderCopyPathButton" class="btn" type="button">复制位置</button></div>
+                 </div>
+               </section>
+               <div id="textPane" class="editor-pane hidden">
                 <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><span id="editorEncoding">UTF-8</span></div>
                 <textarea id="textEditor" spellcheck="false" aria-label="文本编辑器"></textarea>
               </div>
@@ -66,7 +83,7 @@
                 <strong id="unsupportedTitle">暂未接入该文件类型</strong>
                 <span id="unsupportedMessage">当前 P0 Demo 先验证文本文件闭环。</span>
               </div>
-              <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span></footer>
+              <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span><button id="terminalToggle" class="statusbar-terminal" type="button" title="内置终端（Ctrl+`）">⌨ 终端</button></footer>
             </div>
             <aside id="notesPanel" class="notes-panel hidden" aria-label="文档批注">
               <div class="notes-head"><div><strong>文档批注</strong><div id="noteFileLabel" class="note-file">未选择文档</div></div><button id="closeNotesButton" class="icon-btn" type="button" aria-label="关闭批注">×</button></div>
@@ -76,6 +93,20 @@
               <div class="note-compose"><div id="noteContextHint" class="note-context-hint">当前批注默认关联全文。</div><textarea id="noteInput" class="note-input" placeholder="输入一条批注…"></textarea><div class="note-compose-row"><select id="noteScope" class="note-scope"><option value="general">全文</option><option value="selection">当前选区</option><option value="page">当前页</option><option value="cell">当前单元格</option></select><button id="addNoteButton" class="btn primary" type="button">添加</button></div></div>
             </aside>
             <button id="notesBtn" class="notes-float" type="button" disabled aria-label="打开批注面板">批注 <span id="noteCount">0</span></button>
+          </section>
+
+          <section id="terminalPanel" class="terminal-panel hidden" aria-label="内置终端">
+            <div id="terminalResizeHandle" class="terminal-resize-handle" title="拖拽调整终端高度"></div>
+            <div class="terminal-layout"><div class="terminal-main"><div class="terminal-head">
+              <span id="terminalTitle" class="terminal-title">终端</span>
+              <select id="terminalShellSelect" class="terminal-shell" aria-label="终端 Shell"><option value="powershell">PowerShell</option><option value="cmd">cmd.exe</option></select>
+              <span id="terminalStatus" class="terminal-status"></span>
+              <div class="terminal-actions">
+                <button id="terminalRestartButton" class="terminal-btn" type="button" title="重启终端">↻</button>
+                <button id="terminalCloseButton" class="terminal-btn" type="button" title="关闭终端面板（Ctrl+`）">×</button>
+              </div>
+            </div>
+            <div id="terminalHost" class="terminal-host"></div></div><aside class="terminal-list-panel" aria-label="终端列表"><div class="terminal-list-head"><strong>终端列表</strong><button id="terminalAddButton" class="terminal-add-btn" type="button" title="新建终端">＋</button></div><div id="terminalList" class="terminal-list"></div></aside></div>
           </section>
         </main>
       </div>
@@ -96,7 +127,7 @@
         <div class="modal-body settings-body">
           <section class="settings-card"><div class="settings-card-heading"><div class="settings-card-icon">▤</div><div><strong>可编辑文本后缀</strong><small>填写允许直接编辑的文件后缀，使用逗号或空格分隔。</small></div><button id="settingsResetDefaults" class="settings-reset" type="button">↶ 恢复默认</button></div><div class="settings-grid"><label class="setting-field"><span class="sr-only">可编辑文本后缀</span><textarea id="textExtensionsInput" class="settings-textarea" spellcheck="false"></textarea><small>示例：.txt, .md, .json</small></label><label class="setting-field"><span>文本大小上限（MB）</span><input id="maxTextSizeInput" class="text-input" type="number" min="1" step="1" /><small>超过此大小的文件将使用普通方式打开</small></label></div></section>
           <section class="settings-card settings-theme-card"><div class="settings-card-heading"><div class="settings-card-icon">◉</div><div><strong>外观主题</strong><small>当前版本保证浅色稳定体验，深色主题将在 V2 完成</small></div></div><select id="themeSelect" class="theme-select-hidden" aria-hidden="true"><option value="light">日间模式</option><option value="dark">深色模式</option></select><div class="theme-options"><button id="themeLightButton" class="theme-option active" type="button"><span class="theme-option-icon">☼</span><span><strong>浅色模式</strong><small>简洁明亮，专注高效</small></span></button><button id="themeDarkButton" class="theme-option" type="button"><span class="theme-option-icon">☾</span><span><strong>深色模式</strong><small>暂不支持，已排入 V2</small></span></button><button id="themeSystemButton" class="theme-option" type="button"><span class="theme-option-icon">◯</span><span><strong>跟随系统</strong><small>暂不支持，已排入 V2</small></span></button></div></section>
-          <section class="settings-card settings-options-card"><div class="settings-card-heading"><div class="settings-card-icon">☷</div><div><strong>其他选项</strong><small>个性化你的编辑体验</small></div></div><div class="settings-check-grid"><label class="check-field"><input id="confirmCloseInput" type="checkbox" /><span><strong>关闭前确认未保存修改</strong><small>当有未保存的修改时，关闭前弹出确认提示</small></span></label><label class="check-field"><input id="annotationEnabledInput" type="checkbox" /><span><strong>启用本地批注</strong><small>支持为代码添加本地批注，便于后续查看</small></span></label><label class="check-field"><input id="restoreSessionInput" type="checkbox" /><span><strong>恢复上次工作区</strong><small>下次打开时，自动恢复上次的文件和编辑状态</small></span></label><label class="check-field"><input id="shellContextMenuInput" type="checkbox" /><span><strong>Windows 右键打开</strong><small>在文件资源管理器右键菜单中添加“用 QuickEdit 打开”</small></span></label><label class="check-field"><input id="shellOpenWithInput" type="checkbox" /><span><strong>加入打开方式候选</strong><small>在“打开方式”菜单中显示 QuickEdit</small></span></label></div></section>
+          <section class="settings-card settings-options-card"><div class="settings-card-heading"><div class="settings-card-icon">☷</div><div><strong>其他选项</strong><small>个性化你的编辑体验</small></div></div><div class="settings-check-grid"><label class="check-field"><span class="check-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="2.8" width="8" height="3.4" rx="1" /><path d="M8 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H16" /><path d="M9 11h6M9 15h4" /></svg></span><span class="check-field-text"><strong>关闭前确认未保存修改</strong><small>当有未保存的修改时，关闭前弹出确认提示</small></span><input id="confirmCloseInput" type="checkbox" /></label><label class="check-field"><span class="check-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4 3.8 5.8a1 1 0 0 0-.8 1v12.4a1 1 0 0 0 1.3 1L9 18l6 2 5.2-1.8a1 1 0 0 0 .8-1V4.8a1 1 0 0 0-1.3-1L15 6 9 4z" /><path d="M9 4v14M15 6v14" /></svg></span><span class="check-field-text"><strong>启用本地批注</strong><small>支持为代码添加本地批注，便于后续查看</small></span><input id="annotationEnabledInput" type="checkbox" /></label><label class="check-field"><span class="check-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5" /><path d="M3.5 3.5v5h5" /><path d="M12 8v4.2l2.8 1.8" /></svg></span><span class="check-field-text"><strong>恢复上次工作区</strong><small>下次打开时，自动恢复上次的文件和编辑状态</small></span><input id="restoreSessionInput" type="checkbox" /></label><label class="check-field"><span class="check-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13.5 5H19v5.5" /><path d="M19 5l-8.5 8.5" /><path d="M19 13.8V18a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18V7a1.5 1.5 0 0 1 1.5-1.5h4.7" /></svg></span><span class="check-field-text"><strong>Windows 右键打开</strong><small>在文件资源管理器右键菜单中添加“用 QuickEdit 打开”</small></span><input id="shellContextMenuInput" type="checkbox" /></label><label class="check-field"><span class="check-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11" /><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" /></svg></span><span class="check-field-text"><strong>加入打开方式候选</strong><small>在“打开方式”菜单中显示 QuickEdit</small></span><input id="shellOpenWithInput" type="checkbox" /></label></div></section>
           <div class="modal-actions settings-actions"><button id="settingsCancel" class="btn" type="button">取消</button><button id="settingsSave" class="btn primary" type="button">✓ 保存设置</button></div>
         </div>
       </div>
@@ -108,6 +139,5 @@
         <article id="helpContent" class="help-content"></article>
       </div>
     </div>
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   </body>
 </html>

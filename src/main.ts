@@ -1,8 +1,11 @@
+import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
 import MarkdownIt from "markdown-it";
 import configHelpMarkdown from "./QuickEdit_Config_Help.md?raw";
 import type * as XLSX from "xlsx";
@@ -33,6 +36,7 @@ interface FileMetadata {
   extension: string;
   size: number;
   modifiedTime: number;
+  createdTime: number;
   isDirectory: boolean;
 }
 
@@ -44,6 +48,7 @@ interface TreeNode {
   extension: string;
   size: number;
   modifiedTime: number;
+  createdTime: number;
   expanded: boolean;
   childrenLoaded: boolean;
   loading: boolean;
@@ -146,6 +151,39 @@ interface BinarySession {
   bytes: Uint8Array;
 }
 
+type TerminalShell = "powershell" | "cmd";
+
+interface TerminalContext {
+  cwd?: string;
+  scopeKey: string;
+  scopeLabel: string;
+}
+
+interface TerminalSession {
+  id: string;
+  processId: string | null;
+  title: string;
+  scopeKey: string;
+  scopeLabel: string;
+  cwd?: string;
+  shell: TerminalShell;
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  host: HTMLDivElement;
+  running: boolean;
+  spawning: boolean;
+  status: string;
+}
+
+interface TerminalOutputEvent {
+  sessionId: string;
+  data: string;
+}
+
+interface TerminalExitEvent {
+  sessionId: string;
+}
+
 interface CommandFailure {
   code?: string;
   message?: string;
@@ -221,6 +259,16 @@ const modePillElement = $("#modePill");
 const docMetaElement = $("#docMeta");
 const emptyViewElement = $("#emptyView");
 const loadingViewElement = $("#loadingView");
+const folderInfoPaneElement = $("#folderInfoPane");
+const folderInfoTitleElement = $("#folderInfoTitle");
+const folderInfoKindElement = $("#folderInfoKind");
+const folderInfoNameElement = $("#folderInfoName");
+const folderInfoModifiedElement = $("#folderInfoModified");
+const folderInfoCreatedElement = $("#folderInfoCreated");
+const folderInfoLocationElement = $("#folderInfoLocation");
+const folderInfoCountElement = $("#folderInfoCount");
+const folderTerminalButton = $("#folderTerminalButton") as HTMLButtonElement;
+const folderCopyPathButton = $("#folderCopyPathButton") as HTMLButtonElement;
 const textPaneElement = $("#textPane");
 const excelPaneElement = $("#excelPane");
 const sheetTabsElement = $("#sheetTabs");
@@ -304,6 +352,19 @@ const themeDarkButton = $("#themeDarkButton") as HTMLButtonElement;
 const themeSystemButton = $("#themeSystemButton") as HTMLButtonElement;
 const settingsResetDefaultsButton = $("#settingsResetDefaults") as HTMLButtonElement;
 const toastElement = $("#toast");
+const toastMessageElement = $("#toastMessage");
+const toastCloseButton = $("#toastClose") as HTMLButtonElement;
+const terminalPanelElement = $("#terminalPanel");
+const terminalHostElement = $("#terminalHost");
+const terminalTitleElement = $("#terminalTitle");
+const terminalListElement = $("#terminalList");
+const terminalAddButton = $("#terminalAddButton") as HTMLButtonElement;
+const terminalResizeHandle = $("#terminalResizeHandle");
+const terminalShellSelect = $("#terminalShellSelect") as HTMLSelectElement;
+const terminalStatusElement = $("#terminalStatus");
+const terminalRestartButton = $("#terminalRestartButton") as HTMLButtonElement;
+const terminalCloseButton = $("#terminalCloseButton") as HTMLButtonElement;
+const terminalToggleButton = $("#terminalToggle") as HTMLButtonElement;
 
 let config = fallbackConfig;
 let nodeSequence = 0;
@@ -332,10 +393,10 @@ let activeAnnotationPath = "";
 let activeAnnotationStale = false;
 let activeCellLocator: { sheet: string; cell: string } | null = null;
 let previewSelectionSnapshot: { quote: string; start: number; end: number } | null = null;
+let editSelectionSnapshot: { quote: string; start: number; end: number } | null = null;
 let treeFilter = "";
 let treeSortMode: TreeSortMode = "files-first";
 let nameCallback: ((name: string) => void) | null = null;
-let toastTimer: number | undefined;
 
 const docsSection = createContainer("docs", "文档", "");
 roots = [docsSection];
@@ -354,6 +415,7 @@ function createContainer(kind: "docs" | "workspace" | "folder", name: string, pa
     extension: "",
     size: 0,
     modifiedTime: 0,
+    createdTime: 0,
     expanded: kind === "docs",
     childrenLoaded: kind === "docs",
     loading: false,
@@ -371,6 +433,7 @@ function createFileNode(metadata: FileMetadata): TreeNode {
     extension: metadata.extension,
     size: metadata.size,
     modifiedTime: metadata.modifiedTime,
+    createdTime: metadata.createdTime,
     expanded: false,
     childrenLoaded: true,
     loading: false,
@@ -449,6 +512,11 @@ function formatModifiedTime(value: number): string {
   return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function formatCreatedTime(value: number): string {
+  if (!value) return "创建时间未知";
+  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function countFiles(node: TreeNode): number {
   return node.children.reduce((count, child) => count + (child.kind === "file" ? 1 : countFiles(child)), 0);
 }
@@ -466,11 +534,13 @@ function failureMessage(error: unknown): string {
 }
 
 function showToast(message: string, isError = false): void {
-  toastElement.textContent = message;
+  toastMessageElement.textContent = message;
   toastElement.classList.toggle("error", isError);
   toastElement.classList.remove("hidden");
-  if (toastTimer !== undefined) window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => toastElement.classList.add("hidden"), 2600);
+}
+
+function hideToast(): void {
+  toastElement.classList.add("hidden");
 }
 
 function hideMenu(): void {
@@ -609,7 +679,7 @@ function renderNode(node: TreeNode, depth: number): void {
     add.title = "新建文件夹 / 新建文档";
     add.addEventListener("click", (event) => {
       event.stopPropagation();
-      showAddMenu(node, add);
+      showAddMenu(node, event.clientX, event.clientY);
     });
     actions.append(add);
   }
@@ -636,7 +706,7 @@ function renderNode(node: TreeNode, depth: number): void {
   });
   row.addEventListener("contextmenu", (event) => {
     event.preventDefault();
-    showNodeMenu(node, row);
+    showNodeMenu(node, event.clientX, event.clientY);
   });
   treeElement.append(row);
 
@@ -645,7 +715,54 @@ function renderNode(node: TreeNode, depth: number): void {
   }
 }
 
+function selectContainer(node: TreeNode): void {
+  closeFindBar();
+  activeNode = node;
+  activeSession = null;
+  activeBinarySession = null;
+  activeWorkbook = null;
+  activeSheetName = "";
+  activePdfDocument = null;
+  pdfPageObserver?.disconnect();
+  pdfPageObserver = null;
+  pdfPageHosts.clear();
+  pdfPageRendering.clear();
+  activePdfPage = 1;
+  activeAnnotations = null;
+  activeAnnotationPath = "";
+  activeAnnotationStale = false;
+  activeCellLocator = null;
+  previewSelectionSnapshot = null;
+  editSelectionSnapshot = null;
+  closeNotesPanel();
+  showView("folder");
+  renderFolderInfo(node);
+  updateHeader();
+  renderTree();
+  void refreshContainerMetadata(node);
+}
+
+async function refreshContainerMetadata(node: TreeNode): Promise<void> {
+  if (!hasTauriRuntime()) return;
+  try {
+    const path = node.kind === "docs" ? await invoke<string>("get_documents_directory") : node.path;
+    if (!path) return;
+    const metadata = await invoke<FileMetadata>("get_file_metadata", { path });
+    if (activeNode?.id !== node.id) return;
+    node.path = metadata.path;
+    node.size = metadata.size;
+    node.modifiedTime = metadata.modifiedTime;
+    node.createdTime = metadata.createdTime;
+    renderFolderInfo(node);
+    updateHeader();
+    renderTree();
+  } catch (error) {
+    if (activeNode?.id === node.id) showToast(failureMessage(error), true);
+  }
+}
+
 async function toggleNode(node: TreeNode): Promise<void> {
+  selectContainer(node);
   node.expanded = !node.expanded;
   if (node.expanded && node.kind !== "docs" && !node.childrenLoaded) {
     await loadChildren(node);
@@ -676,6 +793,7 @@ function createFileOrFolderNode(metadata: FileMetadata): TreeNode {
     const folder = createContainer("folder", metadata.name, metadata.path);
     folder.size = metadata.size;
     folder.modifiedTime = metadata.modifiedTime;
+    folder.createdTime = metadata.createdTime;
     return folder;
   }
   return createFileNode(metadata);
@@ -689,8 +807,7 @@ async function revealNode(node: TreeNode): Promise<void> {
   }
 }
 
-function showNodeMenu(node: TreeNode, row: HTMLElement): void {
-  const rect = row.getBoundingClientRect();
+function showNodeMenu(node: TreeNode, x: number, y: number): void {
   const items: MenuItem[] = [];
   if (node.kind === "file") {
     items.push({ label: "打开", action: () => void openNode(node) });
@@ -709,15 +826,31 @@ function showNodeMenu(node: TreeNode, row: HTMLElement): void {
     items.push({ separator: true, label: "" });
     items.push({ label: "移除（不删除磁盘文件）", danger: true, action: () => removeNode(node) });
   }
-  showMenu(items, rect.left, rect.bottom + 2);
+  showMenu(items, x, y);
 }
 
-function showAddMenu(node: TreeNode, anchor: HTMLElement): void {
-  const rect = anchor.getBoundingClientRect();
+function showAddMenu(node: TreeNode, x: number, y: number): void {
   const items: MenuItem[] = [];
   if (node.kind !== "docs") items.push({ label: "新建文件夹", action: () => promptFolder(node) });
   items.push({ label: "新建文档", action: () => promptDocument(node) });
-  showMenu(items, rect.right - 4, rect.bottom + 2);
+  showMenu(items, x, y);
+}
+
+function renderFolderInfo(node: TreeNode): void {
+  folderInfoTitleElement.textContent = node.name;
+  folderInfoKindElement.textContent = node.kind === "workspace" ? "工作区" : "文件夹";
+  folderInfoNameElement.textContent = node.name;
+  folderInfoModifiedElement.textContent = formatModifiedTime(node.modifiedTime);
+  folderInfoCreatedElement.textContent = formatCreatedTime(node.createdTime);
+  folderInfoLocationElement.textContent = node.path || "正在获取系统文档目录…";
+  folderInfoLocationElement.title = node.path;
+  folderInfoCountElement.textContent = node.childrenLoaded ? `${countFiles(node)} 个文件` : "未展开";
+  folderCopyPathButton.disabled = !node.path;
+}
+
+function closeNotesPanel(): void {
+  workareaElement.classList.remove("notes-open");
+  notesPanelElement.classList.add("hidden");
 }
 
 function updateHeader(): void {
@@ -729,6 +862,7 @@ function updateHeader(): void {
     modePillElement.textContent = "—";
     modePillElement.className = "pill";
     notesButton.disabled = true;
+    notesButton.classList.add("hidden");
     noteCountElement.textContent = "0";
     updateMarkdownControls();
     updateAnnotationScopeOptions();
@@ -738,6 +872,28 @@ function updateHeader(): void {
     statusPathElement.removeAttribute("title");
     return;
   }
+
+  if (activeNode.kind !== "file") {
+    docNameElement.textContent = activeNode.name;
+    docMetaElement.textContent = activeNode.path || "系统文档目录中的 quickedit 文件夹";
+    docMetaElement.classList.toggle("path-copyable", Boolean(activeNode.path));
+    docMetaElement.title = activeNode.path ? "点击复制完整路径" : "等待系统文档目录路径";
+    modePillElement.textContent = activeNode.kind === "workspace" ? "工作区" : "文件夹";
+    modePillElement.className = "pill readonly";
+    notesButton.disabled = true;
+    notesButton.classList.add("hidden");
+    noteCountElement.textContent = "0";
+    statusModeElement.textContent = "文件夹信息";
+    statusInfoElement.textContent = activeNode.childrenLoaded ? `${countFiles(activeNode)} 个文件` : "目录未展开";
+    statusPathElement.textContent = formatModifiedTime(activeNode.modifiedTime);
+    statusPathElement.title = activeNode.path;
+    renderFolderInfo(activeNode);
+    updateMarkdownControls();
+    updateAnnotationScopeOptions();
+    updateCursorStatus();
+    return;
+  }
+
   const handler = getHandlerKind(activeNode);
   const editable = handler === "text" || handler === "xlsx";
   docNameElement.textContent = activeNode.name;
@@ -746,7 +902,8 @@ function updateHeader(): void {
   docMetaElement.title = "点击复制完整路径";
   modePillElement.textContent = editable ? "可编辑" : handler === "pdf" || handler === "docx" ? "只读预览" : "未接入";
   modePillElement.className = `pill ${editable ? "editable" : "readonly"}`;
-  notesButton.disabled = activeNode.kind !== "file" || !config.annotations.enabled;
+  notesButton.disabled = !config.annotations.enabled;
+  notesButton.classList.remove("hidden");
   updateMarkdownControls();
   updateAnnotationScopeOptions();
   statusPathElement.textContent = formatModifiedTime(activeNode.modifiedTime);
@@ -755,9 +912,10 @@ function updateHeader(): void {
   noteCountElement.textContent = String(activeAnnotations?.annotations.length || 0);
 }
 
-function showView(view: "empty" | "loading" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx" | "unsupported"): void {
+function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx" | "unsupported"): void {
   emptyViewElement.classList.toggle("hidden", view !== "empty");
   loadingViewElement.classList.toggle("hidden", view !== "loading");
+  folderInfoPaneElement.classList.toggle("hidden", view !== "folder");
   textPaneElement.classList.toggle("hidden", view !== "text");
   markdownPreviewPaneElement.classList.toggle("hidden", view !== "markdownPreview");
   excelPaneElement.classList.toggle("hidden", view !== "xlsx");
@@ -836,6 +994,15 @@ function capturePreviewSelection(): void {
   previewSelectionSnapshot = { quote, start, end: start < 0 ? -1 : start + quote.length };
 }
 
+function captureEditSelection(): void {
+  if (!activeNode || activeNode.kind !== "file" || getHandlerKind(activeNode) !== "text") return;
+  if (markdownViewMode === "preview") return;
+  const start = Math.min(textEditorElement.selectionStart, textEditorElement.selectionEnd);
+  const end = Math.max(textEditorElement.selectionStart, textEditorElement.selectionEnd);
+  if (start === end) return;
+  editSelectionSnapshot = { quote: textEditorElement.value.slice(start, end).slice(0, 240), start, end };
+}
+
 function selectPreviewQuote(quote: string): void {
   if (!quote) return;
   const walker = document.createTreeWalker(markdownPreviewElement, NodeFilter.SHOW_TEXT);
@@ -873,9 +1040,13 @@ function currentAnnotationContext(): { scope: AnnotationScope; locator: Annotati
     if (!activeSession) return null;
     const start = Math.min(textEditorElement.selectionStart, textEditorElement.selectionEnd);
     const end = Math.max(textEditorElement.selectionStart, textEditorElement.selectionEnd);
-    if (start === end) return null;
-    const quote = textEditorElement.value.slice(start, end).slice(0, 240);
-    return { scope, locator: { start, end, quote }, hint: `当前批注关联选区：${quote.slice(0, 48)}` };
+    if (start !== end) {
+      const quote = textEditorElement.value.slice(start, end).slice(0, 240);
+      return { scope, locator: { start, end, quote }, hint: `当前批注关联选区：${quote.slice(0, 48)}` };
+    }
+    const snapshot = editSelectionSnapshot;
+    if (!snapshot || !snapshot.quote) return null;
+    return { scope, locator: { start: snapshot.start, end: snapshot.end, quote: snapshot.quote }, hint: `已记住的选区：${snapshot.quote.slice(0, 48)}` };
   }
   if (scope === "page") {
     if (getHandlerKind(activeNode) !== "pdf" || !activePdfDocument) return null;
@@ -890,7 +1061,7 @@ function currentAnnotationContext(): { scope: AnnotationScope; locator: Annotati
 
 function updateAnnotationScopeOptions(): void {
   const handler = activeNode?.kind === "file" ? getHandlerKind(activeNode) : "future";
-  const hasSelection = handler === "text" && (textEditorElement.selectionStart !== textEditorElement.selectionEnd || Boolean(previewSelectionQuote()) || (markdownViewMode === "preview" && Boolean(previewSelectionSnapshot?.quote)));
+  const hasSelection = handler === "text" && (textEditorElement.selectionStart !== textEditorElement.selectionEnd || Boolean(previewSelectionQuote()) || (markdownViewMode === "preview" && Boolean(previewSelectionSnapshot?.quote)) || Boolean(editSelectionSnapshot?.quote));
   const available: Record<AnnotationScope, boolean> = {
     general: activeNode?.kind === "file",
     selection: handler === "text",
@@ -1362,7 +1533,7 @@ async function openBinaryNode(node: TreeNode, handler: HandlerKind): Promise<voi
   throw new Error("未接入该文件类型的 Handler。");
 }
 
-async function openNode(node: TreeNode): Promise<void> {
+async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Promise<void> {
   closeFindBar();
   activeNode = node;
   activeSession = null;
@@ -1375,7 +1546,7 @@ async function openNode(node: TreeNode): Promise<void> {
   pdfPageHosts.clear();
   pdfPageRendering.clear();
   activePdfPage = 1;
-  markdownViewMode = isMarkdownNode(node) ? "preview" : "edit";
+  markdownViewMode = isMarkdownNode(node) ? (options?.preferEdit ? "edit" : "preview") : "edit";
   markdownContentRevision = 0;
   markdownPreviewRevision = -1;
   markdownPreviewHtml = "";
@@ -1384,6 +1555,7 @@ async function openNode(node: TreeNode): Promise<void> {
   activeAnnotationStale = false;
   activeCellLocator = null;
   previewSelectionSnapshot = null;
+  editSelectionSnapshot = null;
   updateHeader();
   renderNotes();
   if (node.kind === "file") void loadAnnotations(node);
@@ -1434,7 +1606,7 @@ async function openNode(node: TreeNode): Promise<void> {
     editorFileLabelElement.textContent = `${node.name} · 文本编辑`;
     editorEncodingElement.textContent = documentModel.encoding.toUpperCase();
     if (isMarkdownNode(node)) {
-      setMarkdownViewMode("preview");
+      setMarkdownViewMode(options?.preferEdit ? "edit" : "preview");
     } else {
       statusModeElement.textContent = "文本编辑";
       updateTextStatus();
@@ -1590,6 +1762,7 @@ function markDirty(): void {
   if (!activeNode || !activeSession) return;
   activeNode.dirty = true;
   activeNode.content = textEditorElement.value;
+  editSelectionSnapshot = null;
   if (isMarkdownNode(activeNode)) {
     markdownContentRevision += 1;
     markdownPreviewRevision = -1;
@@ -1843,7 +2016,7 @@ async function createDocument(parent: TreeNode, name: string): Promise<void> {
     renderTree();
     void saveWorkspaceState();
     showToast(`已新建文档 ${name}`);
-    await openNode(documentNode);
+    await openNode(documentNode, { preferEdit: true });
   } catch (error) {
     showToast(failureMessage(error), true);
   }
@@ -1885,6 +2058,7 @@ async function renameDocument(node: TreeNode, newName: string): Promise<void> {
     node.extension = metadata.extension;
     node.size = metadata.size;
     node.modifiedTime = metadata.modifiedTime;
+    node.createdTime = metadata.createdTime;
     if (activeSession) {
       activeSession = { ...activeSession, path: replacePathPrefix(activeSession.path, oldPath, metadata.path) };
     }
@@ -1900,29 +2074,340 @@ async function renameDocument(node: TreeNode, newName: string): Promise<void> {
 
 function workspaceRootFor(target: TreeNode, workspace: TreeNode): TreeNode | null {
   if (workspace.kind !== "workspace") return null;
-  if (workspace.id === target.id) return workspace;
-  for (const child of workspace.children) {
-    if (child.id === target.id) return workspace;
-    if (child.kind !== "file" && containsNode(child, target)) return workspace;
-  }
-  return null;
+  return workspace.id === target.id || containsNode(workspace, target) ? workspace : null;
 }
 
-function terminalWorkingDirectory(): string | undefined {
-  if (!activeNode) return undefined;
-  if (activeNode.kind === "workspace" || activeNode.kind === "folder") return activeNode.path;
-  for (const root of roots) {
-    const workspace = workspaceRootFor(activeNode, root);
-    if (workspace) return workspace.path;
+function isDocumentsNode(target: TreeNode | null): boolean {
+  return Boolean(target && (target.id === docsSection.id || containsNode(docsSection, target)));
+}
+
+function terminalTarget(): TreeNode {
+  return activeNode || roots.find((node) => node.kind === "workspace") || docsSection;
+}
+
+function scopePath(path: string | undefined): string {
+  return path?.trim().toLowerCase() || "default";
+}
+
+async function terminalContextFor(target: TreeNode | null): Promise<TerminalContext> {
+  const effectiveTarget = target || terminalTarget();
+  if (isDocumentsNode(effectiveTarget)) {
+    const cwd = hasTauriRuntime() ? await invoke<string>("get_documents_directory") : undefined;
+    return { cwd, scopeKey: `documents:${scopePath(cwd)}`, scopeLabel: "文档 / quickedit" };
   }
-  const normalized = activeNode.path.replace(/[\\/]+$/, "");
-  const separator = Math.max(normalized.lastIndexOf("\\"), normalized.lastIndexOf("/"));
-  return separator > 0 ? normalized.slice(0, separator) : undefined;
+  const workspace = roots
+    .map((root) => workspaceRootFor(effectiveTarget, root))
+    .find((root): root is TreeNode => root !== null);
+  if (workspace) {
+    return { cwd: workspace.path, scopeKey: `workspace:${scopePath(workspace.path)}`, scopeLabel: workspace.name };
+  }
+  return { cwd: undefined, scopeKey: "default", scopeLabel: "默认目录" };
+}
+
+const terminalTheme = {
+  background: "#fbfcfe",
+  foreground: "#222b3a",
+  cursor: "#5b6cf9",
+  cursorAccent: "#ffffff",
+  selectionBackground: "rgba(91, 108, 249, 0.22)",
+};
+let terminalSessions: TerminalSession[] = [];
+let activeTerminalId: string | null = null;
+let terminalVisible = false;
+let terminalSequence = 0;
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function activeTerminalSession(): TerminalSession | null {
+  return terminalSessions.find((session) => session.id === activeTerminalId) || null;
+}
+
+function updateTerminalHeader(): void {
+  const session = activeTerminalSession();
+  terminalTitleElement.textContent = session ? `${session.title} · ${session.scopeLabel}` : "终端";
+  terminalShellSelect.disabled = !session;
+  if (session) terminalShellSelect.value = session.shell;
+  terminalStatusElement.textContent = session?.status || (session && !session.running ? "已退出" : "");
+}
+
+function renderTerminalList(): void {
+  terminalListElement.replaceChildren();
+  if (terminalSessions.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "terminal-list-empty";
+    empty.textContent = "暂无终端，点击右上角＋新建。";
+    terminalListElement.append(empty);
+    updateTerminalHeader();
+    return;
+  }
+  for (const session of terminalSessions) {
+    const item = document.createElement("div");
+    item.className = `terminal-list-item${session.id === activeTerminalId ? " active" : ""}`;
+    item.setAttribute("role", "button");
+    item.tabIndex = 0;
+    const main = document.createElement("span");
+    main.className = "terminal-list-item-main";
+    const title = document.createElement("span");
+    title.className = "terminal-list-item-title";
+    title.textContent = `${session.title}${session.spawning ? " · 正在启动…" : session.running ? "" : " · 已退出"}`;
+    const scope = document.createElement("span");
+    scope.className = "terminal-list-item-scope";
+    scope.textContent = session.scopeLabel;
+    main.append(title, scope);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "terminal-list-item-close";
+    close.title = "关闭此终端";
+    close.textContent = "×";
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void closeTerminalSession(session.id);
+    });
+    item.append(main, close);
+    item.addEventListener("click", () => activateTerminal(session.id));
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activateTerminal(session.id);
+      }
+    });
+    terminalListElement.append(item);
+  }
+  updateTerminalHeader();
+}
+
+function setTerminalVisible(visible: boolean): void {
+  terminalVisible = visible;
+  terminalPanelElement.classList.toggle("hidden", !visible);
+  terminalToggleButton.classList.toggle("active", visible);
+  if (visible) {
+    renderTerminalList();
+    requestAnimationFrame(fitTerminal);
+  }
+}
+
+function fitTerminal(): void {
+  const session = activeTerminalSession();
+  if (!session || !terminalVisible) return;
+  try {
+    session.fitAddon.fit();
+  } catch {
+    /* 面板尺寸为 0 时忽略 */
+  }
+}
+
+async function spawnTerminal(session: TerminalSession): Promise<void> {
+  if (!hasTauriRuntime() || session.spawning || session.running) return;
+  session.spawning = true;
+  session.status = "正在启动…";
+  const processId = `${session.id}-run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  session.processId = processId;
+  renderTerminalList();
+  try {
+    await invoke("terminal_spawn", {
+      sessionId: processId,
+      cwd: session.cwd,
+      shell: session.shell,
+      rows: session.terminal.rows,
+      cols: session.terminal.cols,
+    });
+    session.running = true;
+    session.status = "";
+  } catch (error) {
+    session.processId = null;
+    session.status = "启动失败";
+    showToast(failureMessage(error), true);
+  } finally {
+    session.spawning = false;
+    renderTerminalList();
+  }
+}
+
+async function killTerminal(session: TerminalSession): Promise<void> {
+  const processId = session.processId;
+  if (hasTauriRuntime() && processId && (session.running || session.spawning)) {
+    try {
+      await invoke("terminal_kill", { sessionId: processId });
+    } catch {
+      /* 终端已退出时忽略 */
+    }
+  }
+  session.processId = null;
+  session.running = false;
+  session.spawning = false;
+  session.status = "已退出";
+}
+
+function createTerminalSession(context: TerminalContext): TerminalSession {
+  terminalSequence += 1;
+  const host = document.createElement("div");
+  host.className = "terminal-instance-host hidden";
+  terminalHostElement.append(host);
+  const terminal = new Terminal({
+    fontFamily: '"Cascadia Code", Consolas, "Microsoft YaHei", monospace',
+    fontSize: 13,
+    lineHeight: 1.2,
+    cursorBlink: true,
+    scrollback: 5000,
+    theme: terminalTheme,
+  });
+  const fitAddon = new FitAddon();
+  terminal.loadAddon(fitAddon);
+  const session: TerminalSession = {
+    id: `terminal-${Date.now()}-${terminalSequence}`,
+    processId: null,
+    title: `终端 ${terminalSequence}`,
+    scopeKey: context.scopeKey,
+    scopeLabel: context.scopeLabel,
+    cwd: context.cwd,
+    shell: "powershell",
+    terminal,
+    fitAddon,
+    host,
+    running: false,
+    spawning: false,
+    status: "",
+  };
+  terminal.onData((data) => {
+    const processId = session.processId;
+    if (!session.running || !processId) return;
+    void invoke("terminal_write", { sessionId: processId, data }).catch((error) => showToast(failureMessage(error), true));
+  });
+  terminal.onResize(({ rows, cols }) => {
+    const processId = session.processId;
+    if (!session.running || !processId) return;
+    void invoke("terminal_resize", { sessionId: processId, rows, cols }).catch(() => undefined);
+  });
+  terminal.open(host);
+  terminalSessions.push(session);
+  renderTerminalList();
+  return session;
+}
+
+function activateTerminal(id: string): void {
+  const session = terminalSessions.find((item) => item.id === id);
+  if (!session) return;
+  activeTerminalId = id;
+  setTerminalVisible(true);
+  for (const item of terminalSessions) item.host.classList.toggle("hidden", item.id !== id);
+  renderTerminalList();
+  requestAnimationFrame(() => {
+    fitTerminal();
+    session.terminal.focus();
+  });
+}
+
+async function closeTerminalSession(id: string): Promise<void> {
+  const index = terminalSessions.findIndex((session) => session.id === id);
+  if (index < 0) return;
+  const session = terminalSessions[index];
+  const wasActive = activeTerminalId === id;
+  await killTerminal(session);
+  session.terminal.dispose();
+  session.host.remove();
+  terminalSessions.splice(index, 1);
+  if (wasActive) {
+    const next = terminalSessions[index] || terminalSessions[index - 1];
+    activeTerminalId = next?.id || null;
+    if (activeTerminalId) {
+      activateTerminal(activeTerminalId);
+    } else {
+      setTerminalVisible(false);
+      renderTerminalList();
+    }
+  } else {
+    renderTerminalList();
+  }
+}
+
+async function openTerminalForTarget(target: TreeNode | null = activeNode): Promise<void> {
+  try {
+    const context = await terminalContextFor(target);
+    let session = terminalSessions.find((item) => item.scopeKey === context.scopeKey);
+    if (!session) session = createTerminalSession(context);
+    activateTerminal(session.id);
+    await spawnTerminal(session);
+    session.terminal.focus();
+  } catch (error) {
+    showToast(failureMessage(error), true);
+  }
+}
+
+async function addManualTerminal(): Promise<void> {
+  try {
+    const context = await terminalContextFor(activeNode);
+    const session = createTerminalSession(context);
+    activateTerminal(session.id);
+    await spawnTerminal(session);
+    session.terminal.focus();
+  } catch (error) {
+    showToast(failureMessage(error), true);
+  }
+}
+
+async function toggleTerminal(force?: boolean): Promise<void> {
+  if (force === false || (typeof force !== "boolean" && terminalVisible)) {
+    setTerminalVisible(false);
+    return;
+  }
+  await openTerminalForTarget(activeNode);
+}
+
+async function restartTerminal(): Promise<void> {
+  const session = activeTerminalSession();
+  if (!session) return;
+  session.terminal.reset();
+  await killTerminal(session);
+  await spawnTerminal(session);
+  session.terminal.focus();
+}
+
+function bindTerminalResizeDrag(): void {
+  let startY = 0;
+  let startHeight = 0;
+  const onMove = (event: MouseEvent) => {
+    const height = Math.min(Math.max(startHeight + (startY - event.clientY), 120), Math.floor(window.innerHeight * 0.75));
+    terminalPanelElement.style.height = `${height}px`;
+    fitTerminal();
+  };
+  const onUp = () => {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    fitTerminal();
+  };
+  terminalResizeHandle.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    startY = event.clientY;
+    startHeight = terminalPanelElement.getBoundingClientRect().height;
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
+}
+
+function bindTerminalEvents(): void {
+  terminalToggleButton.addEventListener("click", () => void openTerminalForTarget(activeNode));
+  folderTerminalButton.addEventListener("click", () => void openTerminalForTarget(activeNode));
+  folderCopyPathButton.addEventListener("click", () => void copyActivePath());
+  terminalAddButton.addEventListener("click", () => void addManualTerminal());
+  terminalCloseButton.addEventListener("click", () => void toggleTerminal(false));
+  terminalRestartButton.addEventListener("click", () => void restartTerminal());
+  terminalShellSelect.addEventListener("change", () => {
+    const session = activeTerminalSession();
+    if (!session) return;
+    session.shell = terminalShellSelect.value === "cmd" ? "cmd" : "powershell";
+    void restartTerminal();
+  });
+  bindTerminalResizeDrag();
 }
 
 function containsNode(parent: TreeNode, target: TreeNode): boolean {
   if (parent.id === target.id) return true;
-  return parent.children.some((child) => child.kind !== "file" && containsNode(child, target));
+  return parent.children.some((child) => containsNode(child, target));
 }
 
 function removeNode(node: TreeNode): void {
@@ -1932,7 +2417,7 @@ function removeNode(node: TreeNode): void {
       container.children.splice(index, 1);
       return true;
     }
-    return container.children.some((child) => child.kind !== "file" && removeFrom(child));
+    return container.children.some((child) => removeFrom(child));
   };
   if (!window.confirm(`仅从 QuickEdit 列表移除“${node.name}”？\n磁盘文件和未来的 .qnote 不会被删除。`)) return;
   if (!removeFrom({ children: roots } as TreeNode)) return;
@@ -1993,6 +2478,12 @@ async function chooseWorkspace(): Promise<void> {
       return;
     }
     const workspace = createContainer("workspace", metadata.name || basename(metadata.path), metadata.path);
+           workspace.size = metadata.size;
+           workspace.modifiedTime = metadata.modifiedTime;
+           workspace.createdTime = metadata.createdTime;
+    workspace.size = metadata.size;
+    workspace.modifiedTime = metadata.modifiedTime;
+    workspace.createdTime = metadata.createdTime;
     roots.push(workspace);
     renderTree();
     void saveWorkspaceState();
@@ -2034,7 +2525,16 @@ async function restoreWorkspaceState(): Promise<void> {
     for (const reference of state.workspaces) {
       if (!reference.path || roots.some((node) => node.kind === "workspace" && samePath(node.path, reference.path))) continue;
       const workspace = createContainer("workspace", reference.name || basename(reference.path), reference.path);
-      workspace.expanded = reference.expanded;
+      try {
+         const metadata = await invoke<FileMetadata>("get_file_metadata", { path: reference.path });
+         if (!metadata.isDirectory) continue;
+         workspace.size = metadata.size;
+         workspace.modifiedTime = metadata.modifiedTime;
+         workspace.createdTime = metadata.createdTime;
+       } catch {
+         /* 恢复索引中的目录可能已被移动，选中时再次刷新。 */
+       }
+       workspace.expanded = reference.expanded;
       roots.push(workspace);
       if (workspace.expanded) await loadChildren(workspace);
     }
@@ -2084,6 +2584,7 @@ function bindEvents(): void {
   }
   markdownEditButton.addEventListener("click", () => setMarkdownViewMode("edit"));
   markdownPreviewButton.addEventListener("click", () => setMarkdownViewMode("preview"));
+  toastCloseButton.addEventListener("click", hideToast);
   notesButton.addEventListener("click", toggleNotes);
   closeNotesButton.addEventListener("click", () => {
     workareaElement.classList.remove("notes-open");
@@ -2117,10 +2618,12 @@ function bindEvents(): void {
     if (event.key === "Escape") closeFindBar();
   });
   textEditorElement.addEventListener("input", markDirty);
-  textEditorElement.addEventListener("select", () => { updateAnnotationScopeOptions(); updateCursorStatus(); });
+  textEditorElement.addEventListener("select", () => { captureEditSelection(); updateAnnotationScopeOptions(); updateCursorStatus(); });
+  textEditorElement.addEventListener("selectionchange", () => { captureEditSelection(); updateAnnotationScopeOptions(); updateCursorStatus(); });
   textEditorElement.addEventListener("keyup", () => { updateAnnotationScopeOptions(); updateCursorStatus(); });
   document.addEventListener("selectionchange", () => {
     capturePreviewSelection();
+    captureEditSelection();
     updateAnnotationScopeOptions();
   });
   noteScopeElement.addEventListener("change", updateAnnotationScopeOptions);
@@ -2140,7 +2643,7 @@ function bindEvents(): void {
     }
     if (event.ctrlKey && (event.code === "Backquote" || event.key === "`")) {
       event.preventDefault();
-      void invoke("launch_terminal", { cwd: terminalWorkingDirectory() }).catch((error) => showToast(failureMessage(error), true));
+      void toggleTerminal();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
@@ -2162,7 +2665,11 @@ function bindEvents(): void {
       void saveCurrent();
     }
   });
-  window.addEventListener("resize", hideMenu);
+  window.addEventListener("resize", () => {
+    hideMenu();
+    fitTerminal();
+  });
+  bindTerminalEvents();
 }
 
 async function openPaths(paths: string[]): Promise<void> {
@@ -2174,6 +2681,9 @@ async function openPaths(paths: string[]): Promise<void> {
       if (metadata.isDirectory) {
         if (!roots.some((node) => node.kind === "workspace" && samePath(node.path, metadata.path))) {
           const workspace = createContainer("workspace", metadata.name || basename(metadata.path), metadata.path);
+           workspace.size = metadata.size;
+           workspace.modifiedTime = metadata.modifiedTime;
+           workspace.createdTime = metadata.createdTime;
           roots.push(workspace);
           lastAdded = workspace;
           added += 1;
@@ -2224,6 +2734,20 @@ async function initialize(): Promise<void> {
     /* 启动参数读取失败不阻塞主流程 */
   }
   void listen<string[]>("open-paths", (event) => void openPaths(event.payload));
+  void listen<TerminalOutputEvent>("terminal-output", (event) => {
+    const session = terminalSessions.find((item) => item.processId === event.payload.sessionId);
+    session?.terminal.write(base64ToBytes(event.payload.data));
+  });
+  void listen<TerminalExitEvent>("terminal-exit", (event) => {
+    const session = terminalSessions.find((item) => item.processId === event.payload.sessionId);
+    if (!session) return;
+    session.processId = null;
+    session.running = false;
+    session.spawning = false;
+    session.status = "已退出";
+    session.terminal.write("\r\n\x1b[90m[进程已退出，按 ↻ 或重新打开面板可重启]\x1b[0m\r\n");
+    renderTerminalList();
+  });
 }
 
 void initialize();
