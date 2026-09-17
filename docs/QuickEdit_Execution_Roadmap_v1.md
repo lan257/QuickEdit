@@ -91,6 +91,6 @@
 - ⚠️ 四格式与 P5 PDF 连续阅读已用最小样本实测；复杂 DOCX/Excel 未编辑内容保真、大 PDF/Excel 内存表现建议日常使用中继续观察。
 - ✅ 无边框主窗体样式包含 `WS_THICKFRAME`/`WS_MAXIMIZEBOX`，控制区顶部贴边；原生文件选择器完整链路仍建议日常手感确认。右键菜单已实测注册表写入/清理，资源管理器实际显示以系统为准。
 - 📌 后续需求（Post-Markdown 文档，低优先级未排期）：图片/PPTX 只读、Capability 模型、Ctrl+F/H 当前文档查找替换、大文件 normal/lazy/readonly/external 分级。
-- 📦 发布包（v0.1.0 P5）：`.dsh\scratch\sessions\20260915-quickedit-v1\working\target-p5\release\bundle\` 下 MSI 与 NSIS 安装包；安装版默认写入右键/Open With，卸载自动清理。
+- 📦 历史发布包（v0.1.0 P5）：`.dsh\scratch\sessions\20260915-quickedit-v1\working\target-p5\release\bundle\` 下 MSI 与 NSIS 安装包；安装版默认写入右键/Open With，卸载自动清理。当前稳定版已升级为 `v1.1.0`，以 GitHub Release 为准。
 
 ---
