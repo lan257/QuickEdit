@@ -1,0 +1,27 @@
+{
+  "name": "quickedit",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "mammoth": "^1.12.3",
+    "markdown-it": "^15.0.2",
+    "pdfjs-dist": "^6.3.289",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16"
+  }
+}

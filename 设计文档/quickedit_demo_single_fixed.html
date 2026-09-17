@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QuickEdit Demo</title>
+<style>
+:root{
+  --bg:#eef1f6;--panel:#ffffff;--side:#f8f9fc;--line:#e5e8ef;
+  --text:#1d2430;--muted:#7f8999;--accent:#5b6cf9;--accent2:#7c88ff;
+  --accentSoft:#eef1ff;--danger:#df5d66;--shadow:0 22px 60px rgba(35,45,80,.16)
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{font-family:Inter,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+button,input,textarea,select{font:inherit} button{cursor:pointer}.hidden{display:none!important}
+.shell{height:100vh;padding:22px}.app{height:100%;max-width:1480px;margin:auto;background:#fff;border:1px solid #dfe3eb;border-radius:18px;box-shadow:var(--shadow);display:grid;grid-template-columns:286px minmax(0,1fr);overflow:hidden}
+.sidebar{min-width:0;background:linear-gradient(180deg,#fbfcfe,#f6f8fb);border-right:1px solid var(--line);display:flex;flex-direction:column}
+.brand{height:66px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line)}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 6px 18px rgba(91,108,249,.25);position:relative}
+.logo:hover{transform:translateY(-1px)} .logo::after{content:'▾';position:absolute;right:3px;top:2px;font-size:8px;opacity:.85}
+.brand b{font-size:14px}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.label{display:flex;justify-content:space-between;padding:10px 14px 6px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.tree{flex:1;min-height:0;overflow:auto;padding:4px 8px 12px}
+.trow{height:32px;display:flex;align-items:center;gap:6px;padding:0 6px;margin:1px 0;border-radius:7px;cursor:pointer;border:1px solid transparent;position:relative}
+.trow:hover{background:#fff;border-color:var(--line)}
+.trow.active{background:var(--accentSoft);border-color:#dfe3ff}
+.caret{width:12px;flex:none;color:#9aa3b2;font-size:10px;text-align:center}
+.caret.leaf{opacity:.5}
+.ticon{width:28px;height:22px;flex:none;border-radius:6px;display:grid;place-items:center;font-size:8px;font-weight:800}
+.ticon.ws{background:#eef1ff;color:#5b6cf9}.ticon.dir{background:#eef1f6;color:#687285}.ticon.text{background:#eaf0ff;color:#5872d9}.ticon.xls,.ticon.excel{background:#e8f7ef;color:#2f8d61}.ticon.pdf{background:#fff0ef;color:#d65e59}.ticon.doc{background:#edf4ff;color:#4678cc}
+.tname{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tpath{font-size:9px;color:#aeb6c4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none;max-width:120px}
+.tsp{flex:1}
+.tadd,.trm{flex:none;width:22px;height:22px;border:0;background:transparent;border-radius:6px;color:#a4acb9;font-size:14px;line-height:1;display:none}
+.trow:hover .tadd,.trow:hover .trm{display:block}
+.tadd:hover{background:#eef1ff;color:var(--accent)}.trm:hover{background:#fff0ef;color:var(--danger)}
+.sidefoot{padding:12px;border-top:1px solid var(--line)}.tip{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--muted);font-size:10px;line-height:1.6}.tip b{color:var(--text)}
+.btn{height:38px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:0 12px;color:var(--text);font-size:12px;transition:.15s}
+.btn:hover{background:#f7f8fb;transform:translateY(-1px)} .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:transparent;box-shadow:0 5px 14px rgba(91,108,249,.2)}
+.btn.icon{width:38px;padding:0}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.main{min-width:0;display:flex;flex-direction:column}.top{height:66px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 18px}.title{flex:1;min-width:0}.title b{font-size:15px}.meta{font-size:10px;color:var(--muted);margin-top:4px}.pill{display:inline-flex;height:18px;padding:0 7px;align-items:center;border-radius:10px;background:#f2f4f7;color:#727c8d;font-size:9px;margin-left:6px}.pill.readonly{background:#fff0ef;color:#c55d58}
+.work{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);transition:.15s}.work.notes-open{grid-template-columns:minmax(0,1fr) 330px}.content{min-width:0;min-height:0;display:flex;flex-direction:column}.editor{flex:1;min-height:0;width:100%;resize:none;border:0;outline:0;padding:28px 34px;background:#fff;color:#222b3a;font:13px/1.85 "Cascadia Code",Consolas,"Microsoft YaHei",monospace}
+.placeholder{flex:1;display:grid;place-items:center;color:var(--muted);font-size:13px}
+.status{height:32px;flex:none;border-top:1px solid var(--line);background:#fbfcfe;display:flex;align-items:center;gap:18px;padding:0 14px;color:var(--muted);font-size:10px}.push{margin-left:auto}
+.sheet,.reader{flex:1;min-height:0}.sheet{display:flex;flex-direction:column}.tabs{height:42px;padding:8px 12px 0;border-bottom:1px solid var(--line);background:#fbfcfe}.tab{height:34px;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;background:var(--accentSoft);color:#4d5bd2;padding:0 14px;font-size:11px}.tablewrap{flex:1;overflow:auto}table{border-collapse:collapse;width:100%;min-width:720px;font-size:11px}th,td{height:34px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:0 9px}th{background:#f8f9fb;color:#7d8696;font-weight:600}td[contenteditable=true]:focus{outline:2px solid var(--accent);outline-offset:-2px;background:#fbfbff}
+.reader{display:flex;flex-direction:column;background:#f5f6f8}.readbar{height:44px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--muted);font-size:10px}.readbody{flex:1;min-height:0;overflow:auto;padding:24px}.paper{width:min(760px,92%);min-height:760px;margin:auto;background:#fff;border:1px solid #e2e5ea;box-shadow:0 8px 26px rgba(30,39,61,.08);padding:60px 64px}.paper h1{font-size:24px;margin:0 0 30px}.paper h2{font-size:16px;margin:28px 0 10px}.paper p{font-size:12px;line-height:1.95;color:#424b5b}
+.notes{display:none;min-width:0;border-left:1px solid var(--line);background:#fafbfc;flex-direction:column}.work.notes-open .notes{display:flex}.nhead{height:66px;padding:0 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.nhead b{font-size:13px}.nfile{font-size:9px;color:var(--muted);margin-top:3px}.hint{margin:12px;padding:10px;border:1px solid #dfe3ff;background:var(--accentSoft);border-radius:9px;color:#5964a6;font-size:10px;line-height:1.55}.nlist{flex:1;min-height:0;overflow:auto;padding:0 12px 12px}.note{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:8px}.ntag{display:inline-flex;padding:3px 7px;border-radius:6px;background:#f0f2f7;color:#687285;font-size:9px;font-weight:600}.ntext{font-size:11px;line-height:1.65;color:#394252;margin-top:8px}.ntime{font-size:9px;color:var(--muted);margin-top:8px}.compose{padding:12px;border-top:1px solid var(--line);background:#fff}.compose textarea{width:100%;height:82px;resize:none;border:1px solid var(--line);border-radius:9px;padding:10px;outline:0;font-size:11px}.composebar{display:flex;gap:7px;margin-top:8px}.compose select{flex:1;height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 8px;font-size:10px}
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(22,30,46,.34);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}.modal{width:min(480px,100%);background:#fff;border-radius:14px;box-shadow:var(--shadow);overflow:hidden}.modal.large{width:min(760px,100%)}.mhead{height:58px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 18px}.mbody{padding:18px}.input{width:100%;height:42px;border:1px solid var(--line);border-radius:9px;padding:0 11px;outline:0}.preview{margin-top:10px;padding:10px 11px;border-radius:8px;background:#f7f8fb;color:var(--muted);font-size:10px;line-height:1.55}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.settings{display:grid;grid-template-columns:1fr 1fr;gap:14px}.setting{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe}.setting label{display:block;font-size:10px;font-weight:700;margin-bottom:7px}.setting textarea{width:100%;height:88px;border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical;font-size:10px}.row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 2px;border-top:1px solid var(--line);margin-top:12px}.row b{font-size:11px}.row small{display:block;color:var(--muted);margin-top:3px}
+.menu{position:fixed;z-index:80;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:5px;box-shadow:0 8px 24px rgba(35,45,80,.12)}.menu button{width:100%;height:34px;border:0;background:transparent;border-radius:7px;text-align:left;padding:0 12px;font-size:12px}.menu button:hover{background:#f3f5f8}.menu .danger{color:var(--danger)}.sep{height:1px;background:var(--line);margin:4px}
+.toast{position:fixed;right:28px;bottom:28px;z-index:100;background:#202735;color:#fff;padding:10px 13px;border-radius:9px;font-size:11px;box-shadow:0 8px 24px rgba(35,45,80,.18)}
+@media(max-width:1000px){.shell{padding:0}.app{border-radius:0;border:0;max-width:none}.work.notes-open{grid-template-columns:minmax(0,1fr) 290px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo" id="logo" title="打开文档 / 新增工作区">Q</div>
+        <div><b>QuickEdit</b><small>Lightweight file workspace</small></div>
+      </div>
+      <div class="label"><span>Workspace</span><span id="fileCount">0 files</span></div>
+      <div class="tree" id="tree"></div>
+      <div class="sidefoot"><div class="tip"><b>操作</b><br>左上角 ▾ 打开文档 / 新增工作区<br>文件夹行悬停：＋ 新建 · × 移除<br>右键：重命名 / 打开批注 / 移除<br>F2 重命名 · Ctrl+S 保存</div></div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <div class="title"><div><b id="docName">未选择文档</b><span class="pill" id="modePill">—</span></div><div class="meta" id="docMeta"></div></div>
+        <button class="btn" id="renameBtn">重命名</button>
+        <button class="btn" id="notesBtn">批注 <span id="noteCount">0</span></button>
+        <button class="btn primary" id="saveBtn">保存</button>
+      </header>
+
+      <section class="work" id="workarea">
+        <div class="content">
+          <div class="placeholder" id="emptyView">从左侧选择一个文档以开始</div>
+          <textarea class="editor hidden" id="textEditor" spellcheck="false"></textarea>
+          <div class="sheet hidden" id="excelView"><div class="tabs"><button class="tab">Sheet1</button></div><div class="tablewrap"><table><thead><tr><th>#</th><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody id="sheetBody"></tbody></table></div></div>
+          <div class="reader hidden" id="pdfView"><div class="readbar"><button class="btn icon" style="height:30px;width:30px">‹</button><span>第 1 / 8 页</span><button class="btn icon" style="height:30px;width:30px">›</button><span class="push">PDF 阅读模式</span></div><div class="readbody"><article class="paper"><h1>项目技术方案</h1><p>QuickEdit 是一个以快速打开、轻量编辑和本地文件处理为目标的桌面工具。</p><h2>1. 文件加载</h2><p>打开文件夹时仅枚举文件名、路径、扩展名和大小。用户选中文件时才加载正文。</p><h2>2. 批注</h2><p>批注不写回 PDF，而是保存到同目录的伴生 .qnote 文件中。</p></article></div></div>
+          <div class="reader hidden" id="docView"><div class="readbar"><span>DOCX 阅读视图</span><span class="push">不修改原文档</span></div><div class="readbody"><article class="paper"><h1>季度工作总结</h1><p>QuickEdit 对 DOCX 的定位是稳定阅读，而不是 Word 替代品。</p><h2>主要进展</h2><p>统一了文本编辑、Excel 编辑、文档阅读、单文件重命名和本地批注。</p></article></div></div>
+          <div class="status"><span id="statusMode">—</span><span id="statusInfo"></span><span class="push" id="noteFile"></span></div>
+        </div>
+
+        <aside class="notes">
+          <div class="nhead"><div><b>文档批注</b><div class="nfile" id="notePath"></div></div><button class="btn icon" id="closeNotesBtn">×</button></div>
+          <div class="hint">批注独立保存在本地伴生文件中；重命名目标文件时，批注文件同步更名。</div>
+          <div class="nlist" id="notesList"></div>
+          <div class="compose"><textarea id="noteInput" placeholder="输入一条批注…"></textarea><div class="composebar"><select id="noteScope"><option>全文</option><option>当前选区</option><option>当前页</option><option>当前单元格</option></select><button class="btn primary" id="addNoteBtn">添加</button></div></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="overlay hidden" id="nameOverlay"><div class="modal"><div class="mhead"><b id="nameTitle">输入名称</b><button class="btn icon" id="nameClose">×</button></div><div class="mbody"><div class="input" id="nameInput"></div><div class="preview" id="nameHint"></div><div class="actions"><button class="btn" id="nameCancel">取消</button><button class="btn primary" id="nameOk">确定</button></div></div></div></div>
+<div class="overlay hidden" id="settingsOverlay"><div class="modal large"><div class="mhead"><b>QuickEdit 设置</b><button class="btn icon" id="closeSettingsBtn">×</button></div><div class="mbody"><div class="settings"><div class="setting"><label>可编辑文本后缀</label><textarea>.txt, .md, .json, .xml, .yaml, .yml, .ini, .log, .csv, .sql, .py, .js, .ts, .cs</textarea></div><div class="setting"><label>只读文档后缀</label><textarea>.pdf, .docx</textarea></div><div class="setting"><label>Excel 后缀</label><textarea>.xlsx</textarea></div><div class="setting"><label>批注扩展名</label><input class="input" id="noteExtInput" value=".qnote"></div></div><div class="row"><div><b>恢复上次工作区</b><small>只恢复文件引用，不预读正文。</small></div><span>开启</span></div><div class="row"><div><b>Windows 文件管理器集成</b><small>正式版支持右键“使用 QuickEdit 打开”。</small></div><span>开启</span></div><div class="actions"><button class="btn primary" id="saveSettingsBtn">保存配置</button></div></div></div></div>
+<div class="menu hidden" id="menu"></div>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  const $=(s)=>document.querySelector(s);
+  let uid=1000; const nid=()=>'n'+(++uid);
+  let noteExt='.qnote';
+
+  const README_CONTENT=`# QuickEdit
+
+一个尽量轻、快、稳定的本地文件工作区。
+
+核心能力
+- 左侧树形工作区，右侧编辑 / 阅读
+- 文本文件直接编辑
+- Excel 单元格编辑
+- PDF / DOCX 只读阅读
+- 所有文件都支持独立批注
+- 单文件重命名
+- 可配置可打开后缀
+
+批注策略
+README.md → README.md.qnote
+
+批注文件与原文件分离保存，目标文件重命名时同步更名。`;
+
+  function extOf(n){const i=n.lastIndexOf('.');return i<0?'':n.slice(i);}
+  function kindOf(n){const e=extOf(n).toLowerCase();
+    if(e==='.xlsx'||e==='.xls'||e==='.csv')return 'excel';
+    if(e==='.pdf')return 'pdf';
+    if(e==='.docx'||e==='.doc')return 'doc';
+    return 'text';}
+  function defaultMeta(n,kind){
+    if(kind==='excel')return 'Excel · 演示 · 1 个工作表';
+    if(kind==='pdf')return 'PDF · 演示 · 2 页';
+    if(kind==='doc')return 'DOCX · 演示 · 阅读模式';
+    return n+' · UTF-8';}
+  function defaultContent(n,kind){
+    const e=extOf(n).toLowerCase();
+    if(kind==='excel'||kind==='pdf'||kind==='doc')return '';
+    if(e==='.json')return '{\n  "name": "'+n+'",\n  "created": "2026-09-15"\n}';
+    if(e==='.html')return '<!DOCTYPE html>\n<html>\n  <head><meta charset="utf-8"><title>'+n+'</title></head>\n  <body>\n    <h1>'+n+'</h1>\n  </body>\n</html>';
+    if(e==='.md')return '# '+n+'\n\n这是新建文档的占位内容。';
+    return n+'\n\n这是新建文档的占位内容。';}
+  function makeDoc(name,kind,content,meta){
+    kind=kind||kindOf(name);
+    return {id:nid(),type:'doc',name,kind,content:content!==undefined?content:defaultContent(name,kind),meta:meta||defaultMeta(name,kind),dirty:false};}
+  function makeFolder(name,path,extra){
+    return Object.assign({id:nid(),type:'folder',name,expanded:false,children:[],path:path||''},extra||{});}
+  function makeWorkspace(name,path){return Object.assign(makeFolder(name,path),{type:'workspace'});}
+
+  // ---- 构建树 ----
+  const root={id:'root',type:'root',name:'',expanded:true,children:[]};
+
+  const docsSection=makeFolder('文档','');
+  docsSection.type='docs'; docsSection.expanded=true;
+  docsSection.children=[
+    makeDoc('c.json','text','{\n  "name": "c.json",\n  "port": 8080,\n  "debug": false\n}'),
+    makeDoc('d.html','text','<!DOCTYPE html>\n<html>\n  <head><meta charset="utf-8"><title>d.html</title></head>\n  <body>\n    <h1>页面</h1>\n    <p>演示 HTML 文档。</p>\n  </body>\n</html>')
+  ];
+
+  const folderC=makeFolder('文件夹C','C:\\Users\\LinU\\文件夹B\\文件夹C');
+  const folderB=makeFolder('文件夹B','C:\\Users\\LinU\\文件夹B');
+  folderB.expanded=true;
+  folderB.children=[folderC, makeDoc('a.txt','text','a.txt\n\n这是文件夹 B 下的文本文件。')];
+
+  const wsA=makeWorkspace('工作区A','C:\\Users\\LinU');
+  wsA.expanded=true;
+  wsA.children=[folderB, makeDoc('b.md','text','# b.md\n\n工作区 A 根目录下的 Markdown。')];
+
+  const readme=makeDoc('README.md','text',README_CONTENT);
+  const budget=makeDoc('budget.xlsx','excel');
+  const pdf=makeDoc('技术方案.pdf','pdf');
+  const doc=makeDoc('季度总结.docx','doc');
+  const wsB=makeWorkspace('工作区B','G:\\AI视频\\伪...');
+  wsB.children=[readme,budget,pdf,doc];
+
+  root.children=[docsSection,wsA,wsB];
+
+  const notes={};
+  function noteFor(id){return notes[id]||(notes[id]=[]);}
+  noteFor(readme.id).push({scope:'全文',text:'这里可以再补一个 Windows 默认打开方式的说明。',time:'今天 16:12'});
+  noteFor(budget.id).push({scope:'当前单元格',text:'B3 的负责人还没确定。',time:'今天 16:20'});
+  noteFor(pdf.id).push({scope:'当前页',text:'第 2 页的文件大小限制改为从配置读取。',time:'今天 16:28'});
+
+  const sheet=[
+    ['项目','负责人','状态','进度'],
+    ['QuickEdit','耀建','设计中','75%'],
+    ['Windows Shell','-','计划','20%'],
+    ['批注系统','-','已确定','90%']
+  ];
+
+  // ---- DOM ----
+  const treeEl=$('#tree'), fileCount=$('#fileCount'), docName=$('#docName'), docMeta=$('#docMeta'),
+    modePill=$('#modePill'), textEditor=$('#textEditor'), excelView=$('#excelView'), pdfView=$('#pdfView'),
+    docView=$('#docView'), emptyView=$('#emptyView'), statusMode=$('#statusMode'), statusInfo=$('#statusInfo'),
+    noteFile=$('#noteFile'), notePath=$('#notePath'), noteCount=$('#noteCount'), notesList=$('#notesList'),
+    workarea=$('#workarea'), saveBtn=$('#saveBtn'), toastEl=$('#toast'), menu=$('#menu');
+  let activeNode=null;
+
+  function hideViews(){textEditor.classList.add('hidden');excelView.classList.add('hidden');pdfView.classList.add('hidden');docView.classList.add('hidden');}
+  function showToast(m){toastEl.textContent=m;toastEl.classList.remove('hidden');clearTimeout(showToast.t);showToast.t=setTimeout(()=>toastEl.classList.add('hidden'),2200);}
+
+  // ---- 树渲染 ----
+  function countDocs(node){let c=0;node.children.forEach(ch=>{if(ch.type==='doc')c++;else c+=countDocs(ch);});return c;}
+  function renderTree(){
+    treeEl.innerHTML='';
+    renderLevel(root,0);
+    fileCount.textContent=countDocs(root)+' files';
+  }
+  function renderLevel(node,depth){
+    node.children.forEach(child=>{
+      treeEl.appendChild(buildRow(child,depth));
+      if(child.type!=='doc'&&child.expanded)renderLevel(child,depth+1);
+    });
+  }
+  function iconFor(node){
+    if(node.type==='workspace')return{c:'ws',t:'WS'};
+    if(node.type==='docs')return{c:'dir',t:'DOC'};
+    if(node.type==='folder')return{c:'dir',t:'DIR'};
+    const k=node.kind;
+    return{c:k,t:k==='excel'?'XLS':k==='pdf'?'PDF':k==='doc'?'DOC':'TXT'};
+  }
+  function buildRow(node,depth){
+    const row=document.createElement('div');
+    row.className='trow'+(activeNode&&activeNode.id===node.id?' active':'');
+    row.style.paddingLeft=(6+depth*14)+'px';
+
+    const caret=document.createElement('span');
+    caret.className='caret'+(node.type==='doc'?' leaf':'');
+    caret.textContent=node.type==='doc'?'·':(node.expanded?'▾':'▸');
+
+    const inf=iconFor(node);
+    const icon=document.createElement('span');
+    icon.className='ticon '+inf.c; icon.textContent=inf.t;
+
+    const name=document.createElement('span');
+    name.className='tname'; name.textContent=(node.dirty?'● ':'')+node.name;
+
+    row.append(caret,icon,name);
+    if(node.type==='workspace'&&node.path){
+      const p=document.createElement('span'); p.className='tpath'; p.textContent=node.path; p.title=node.path; row.appendChild(p);
+    }
+    const sp=document.createElement('span'); sp.className='tsp'; row.appendChild(sp);
+
+    if(node.type!=='doc'){
+      const add=document.createElement('button');
+      add.className='tadd'; add.type='button'; add.textContent='+'; add.title='新建文件夹 / 新建文档';
+      add.addEventListener('click',(e)=>{e.stopPropagation();showAddMenu(node,add);});
+      row.appendChild(add);
+    }
+    const rm=document.createElement('button');
+    rm.className='trm'; rm.type='button'; rm.textContent='×'; rm.title='从工作区移除';
+    rm.addEventListener('click',(e)=>{e.stopPropagation();removeNode(node);});
+    row.appendChild(rm);
+
+    row.addEventListener('click',()=>{
+      if(node.type==='doc')openNode(node);
+      else{node.expanded=!node.expanded;renderTree();}
+    });
+    row.addEventListener('contextmenu',(e)=>{e.preventDefault();showNodeMenu(node,row);});
+    return row;
+  }
+
+  // ---- 菜单 ----
+  function showMenu(items,x,y){
+    menu.innerHTML='';
+    items.forEach(it=>{
+      if(it.sep){const s=document.createElement('div');s.className='sep';menu.appendChild(s);return;}
+      const b=document.createElement('button'); b.type='button'; b.textContent=it.label; if(it.danger)b.className='danger';
+      b.addEventListener('click',()=>{hideMenu();it.action();});
+      menu.appendChild(b);
+    });
+    menu.classList.remove('hidden');
+    const mw=menu.offsetWidth, mh=menu.offsetHeight;
+    menu.style.left=Math.max(8,Math.min(x,window.innerWidth-mw-8))+'px';
+    menu.style.top=Math.max(8,Math.min(y,window.innerHeight-mh-8))+'px';
+    const closeOnce=(e)=>{ if(!menu.contains(e.target))hideMenu(); document.removeEventListener('click',closeOnce,true); };
+    setTimeout(()=>document.addEventListener('click',closeOnce,true),0);
+  }
+  function hideMenu(){menu.classList.add('hidden');}
+  function showAddMenu(node,anchor){
+    const r=anchor.getBoundingClientRect();
+    showMenu([
+      {label:'新建文件夹',action:()=>addFolder(node)},
+      {label:'新建文档',action:()=>addDoc(node,'新建文档')}
+    ], r.right-4, r.bottom+2);
+  }
+  function showNodeMenu(node,row){
+    const r=row.getBoundingClientRect();
+    const items=[];
+    if(node.type==='doc')items.push({label:'打开',action:()=>openNode(node)});
+    else items.push({label:node.expanded?'折叠':'展开',action:()=>{node.expanded=!node.expanded;renderTree();}});
+    items.push({label:'重命名',action:()=>renameNode(node)});
+    items.push({label:'打开批注',action:()=>{if(node.type==='doc'){openNode(node);workarea.classList.add('notes-open');}}});
+    items.push({sep:true});
+    items.push({label:'移除',danger:true,action:()=>removeNode(node)});
+    showMenu(items,r.left,r.bottom+2);
+  }
+
+  // ---- 名称输入弹窗 ----
+  let nameCb=null;
+  function promptName(title,hint,initial,cb){
+    $('#nameTitle').textContent=title;
+    $('#nameHint').textContent=hint||'';
+    const inp=$('#nameInput'); inp.value=initial||''; inp.placeholder='请输入名称';
+    nameCb=cb;
+    $('#nameOverlay').classList.remove('hidden');
+    setTimeout(()=>{inp.focus();const i=(initial||'').lastIndexOf('.');inp.setSelectionRange(0,i<0?(initial||'').length:i);},0);
+  }
+  function confirmName(){
+    const v=$('#nameInput').value.trim();
+    const bad=['<','>',':','"','/','\\','|','?','*'];
+    if(!v||bad.some(c=>v.includes(c))){showToast('名称不能为空，且不能包含 Windows 非法字符。');return;}
+    const cb=nameCb; nameCb=null;
+    $('#nameOverlay').classList.add('hidden');
+    if(cb)cb(v);
+  }
+
+  // ---- 增 / 删 / 改名 ----
+  function addFolder(container){
+    promptName('新建文件夹','将在 '+(container.name||'根目录')+' 下新建文件夹','', (name)=>{
+      const f=makeFolder(name,(container.path||'')+'\\'+name);
+      f.expanded=true; container.children.push(f); container.expanded=true;
+      renderTree(); showToast('已新建文件夹 '+name);
+    });
+  }
+  function addDoc(container,title){
+    promptName(title||'新建文档','输入文件名（含扩展名），如 note.txt','',(name)=>{
+      container.children.push(makeDoc(name)); container.expanded=true;
+      renderTree(); showToast((title||'已新建文档')+'：'+name);
+    });
+  }
+  function addWorkspace(){
+    promptName('新增工作区','输入工作区名称','',(name)=>{
+      const w=makeWorkspace(name,'（演示路径）\\'+name);
+      w.expanded=true; root.children.push(w);
+      renderTree(); showToast('已新增工作区 '+name);
+    });
+  }
+  function renameNode(node){
+    promptName('重命名','输入新名称',node.name,(name)=>{
+      node.name=name;
+      if(node.type==='doc')node.meta=defaultMeta(name,node.kind);
+      renderTree();
+      if(activeNode&&activeNode.id===node.id)openNode(node);
+      showToast('已重命名为 '+name);
+    });
+  }
+  function contains(node,target){ if(node===target)return true; for(const c of node.children){ if(c.type!=='doc'&&contains(c,target))return true; } return false; }
+  function findParent(node){
+    function walk(parent){ for(const c of parent.children){ if(c===node)return parent; if(c.type!=='doc'){const r=walk(c); if(r)return r;} } return null; }
+    return walk(root);
+  }
+  function removeNode(node){
+    if(node.type==='docs')return;
+    const parent=findParent(node); if(!parent)return;
+    if(node.dirty && !window.confirm(node.name+' 有未保存修改，确定从工作区移除吗？'))return;
+    parent.children.splice(parent.children.indexOf(node),1);
+    if(activeNode&&contains(node,activeNode)){activeNode=null;showEmpty();}
+    renderTree();
+    showToast('已从工作区移除 '+node.name+'（不删除磁盘文件）');
+  }
+
+  // ---- 打开文档 / 视图 ----
+  function openNode(node){
+    activeNode=node;
+    hideViews(); emptyView.classList.add('hidden');
+    docName.textContent=node.name; docMeta.textContent=node.meta||'';
+    const readOnly=node.kind==='pdf'||node.kind==='doc';
+    modePill.textContent=readOnly?'只读':'可编辑'; modePill.className='pill'+(readOnly?' readonly':'');
+    saveBtn.disabled=readOnly;
+    if(node.kind==='text'){
+      textEditor.classList.remove('hidden');
+      textEditor.value=node.content||'';
+      statusMode.textContent='文本编辑'; statusInfo.textContent=textEditor.value.split('\n').length+' 行';
+    } else if(node.kind==='excel'){
+      excelView.classList.remove('hidden'); renderSheet();
+      statusMode.textContent='表格编辑'; statusInfo.textContent='Sheet1 · 4 × 4';
+    } else if(node.kind==='pdf'){
+      pdfView.classList.remove('hidden');
+      statusMode.textContent='PDF 阅读'; statusInfo.textContent='第 1 / 8 页';
+    } else {
+      docView.classList.remove('hidden');
+      statusMode.textContent='DOCX 阅读'; statusInfo.textContent='只读';
+    }
+    const qn=node.name+noteExt; noteFile.textContent=qn; notePath.textContent=qn;
+    renderTree(); renderNotes();
+  }
+  function showEmpty(){
+    hideViews(); emptyView.classList.remove('hidden');
+    docName.textContent='未选择文档'; docMeta.textContent='';
+    statusMode.textContent='—'; statusInfo.textContent='';
+    noteFile.textContent=''; notePath.textContent='';
+    renderNotes();
+  }
+  function renderSheet(){
+    const body=$('#sheetBody'); body.innerHTML='';
+    sheet.forEach((rowData,rowIndex)=>{
+      const tr=document.createElement('tr');
+      const th=document.createElement('th'); th.textContent=String(rowIndex+1); tr.appendChild(th);
+      rowData.forEach((value,colIndex)=>{
+        const td=document.createElement('td'); td.contentEditable='true'; td.textContent=value;
+        td.addEventListener('input',()=>{sheet[rowIndex][colIndex]=td.textContent;markDirty();});
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // ---- 批注 ----
+  function renderNotes(){
+    const id=activeNode?activeNode.id:null;
+    const list=id?noteFor(id):[];
+    noteCount.textContent=String(list.length);
+    notesList.innerHTML='';
+    if(list.length===0){
+      const empty=document.createElement('div');
+      empty.style.cssText='padding:10px 2px;color:var(--muted);font-size:10px';
+      empty.textContent='暂无批注'; notesList.appendChild(empty); return;
+    }
+    list.forEach((note)=>{
+      const card=document.createElement('div'); card.className='note';
+      const tag=document.createElement('span'); tag.className='ntag'; tag.textContent=note.scope;
+      const text=document.createElement('div'); text.className='ntext'; text.textContent=note.text;
+      const time=document.createElement('div'); time.className='ntime'; time.textContent=note.time;
+      card.append(tag,text,time); notesList.appendChild(card);
+    });
+  }
+  function markDirty(){
+    if(!activeNode||activeNode.kind==='pdf'||activeNode.kind==='doc')return;
+    activeNode.dirty=true;
+    if(activeNode.kind==='text')activeNode.content=textEditor.value;
+    renderTree();
+  }
+  function saveCurrent(){
+    if(!activeNode||saveBtn.disabled)return;
+    if(activeNode.kind==='text')activeNode.content=textEditor.value;
+    activeNode.dirty=false;
+    renderTree();
+    showToast('Demo：已保存 '+activeNode.name);
+  }
+
+  // ---- 事件 ----
+  $('#logo').addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const r=e.currentTarget.getBoundingClientRect();
+    showMenu([
+      {label:'打开文档',action:()=>addDoc(docsSection,'打开文档')},
+      {label:'新增工作区',action:()=>addWorkspace()}
+    ], r.left, r.bottom+4);
+  });
+  textEditor.addEventListener('input',()=>{markDirty();statusInfo.textContent=textEditor.value.split('\n').length+' 行';});
+  saveBtn.addEventListener('click',saveCurrent);
+  $('#renameBtn').addEventListener('click',()=>{if(activeNode)renameNode(activeNode);});
+  $('#notesBtn').addEventListener('click',()=>workarea.classList.toggle('notes-open'));
+  $('#closeNotesBtn').addEventListener('click',()=>workarea.classList.remove('notes-open'));
+  $('#addNoteBtn').addEventListener('click',()=>{
+    if(!activeNode)return;
+    const value=$('#noteInput').value.trim(); if(!value)return;
+    noteFor(activeNode.id).push({scope:$('#noteScope').value,text:value,time:'刚刚'});
+    $('#noteInput').value=''; renderNotes();
+    showToast('已写入 '+(activeNode.name+noteExt));
+  });
+  $('#settingsBtn')&&$('#settingsBtn').addEventListener('click',()=>$('#settingsOverlay').classList.remove('hidden'));
+  $('#closeSettingsBtn').addEventListener('click',()=>$('#settingsOverlay').classList.add('hidden'));
+  $('#saveSettingsBtn').addEventListener('click',()=>{
+    const value=$('#noteExtInput').value.trim();
+    noteExt=value?(value.startsWith('.')?value:'.'+value):'.qnote';
+    if(activeNode){const qn=activeNode.name+noteExt;noteFile.textContent=qn;notePath.textContent=qn;}
+    $('#settingsOverlay').classList.add('hidden'); showToast('Demo：配置已保存');
+  });
+  $('#nameClose').addEventListener('click',()=>$('#nameOverlay').classList.add('hidden'));
+  $('#nameCancel').addEventListener('click',()=>$('#nameOverlay').classList.add('hidden'));
+  $('#nameOk').addEventListener('click',confirmName);
+  $('#nameInput').addEventListener('keydown',(e)=>{if(e.key==='Enter')confirmName();});
+  treeEl.addEventListener('scroll',hideMenu);
+  document.addEventListener('keydown',(event)=>{
+    if(event.key==='F2'&&activeNode){event.preventDefault();renameNode(activeNode);}
+    if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();saveCurrent();}
+    if(event.key==='Escape'){hideMenu();$('#nameOverlay').classList.add('hidden');$('#settingsOverlay').classList.add('hidden');}
+  });
+
+  renderTree();
+  openNode(readme);
+})();
+</script>
+</body>
+</html>

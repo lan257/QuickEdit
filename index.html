@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#eef1f6" />
+    <title>QuickEdit</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="app" role="application" aria-label="QuickEdit">
+        <aside class="sidebar">
+          <div class="brand" data-tauri-drag-region>
+            <button id="logoButton" class="logo" type="button" aria-label="打开文档或新增工作区" aria-haspopup="menu">Q<span>▾</span></button>
+            <div class="brand-copy"><strong>QuickEdit</strong><small>Lightweight file workspace</small></div>
+          </div>
+          <div class="section-label"><span>工作区</span><span id="fileCount">0 个文件</span></div>
+          <div class="tree-tools"><input id="treeSearchInput" class="tree-search" type="search" placeholder="过滤文件名 / 后缀" aria-label="过滤文件名或后缀" /><select id="treeSortSelect" class="tree-sort" aria-label="文件排序"><option value="files-first">文件优先</option><option value="folders-first">文件夹优先</option><option value="name-desc">名称倒序</option><option value="modified-desc">最近修改</option></select></div>
+          <div id="tree" class="tree" role="tree" aria-label="工作区文件树"></div>
+          <div class="side-footer">
+            <div class="tip-card"><strong>快速操作</strong><br />左上角 Q：打开文档 / 新增工作区 / 设置<br />悬停文件夹：＋ 新建 · × 移除引用<br />点击文档：按需加载正文 · Ctrl+S 保存</div>
+            <div id="runtimeHint" class="runtime-hint">正在连接本地文件服务…</div>
+          </div>
+        </aside>
+
+        <main class="main">
+          <header class="topbar" data-tauri-drag-region>
+            <div class="document-heading">
+              <div class="heading-line"><h1 id="docName">未选择文档</h1><span id="modePill" class="pill">—</span></div>
+              <div id="docMeta" class="document-meta">从左侧选择一个文档以开始</div>
+            </div>
+            <div id="winControls" class="window-controls"><button id="winMinimize" class="win-btn" type="button" aria-label="最小化">&#x2013;</button><button id="winMaximize" class="win-btn" type="button" aria-label="最大化/还原">&#x25A1;</button><button id="winClose" class="win-btn close" type="button" aria-label="关闭">&#xD7;</button></div>
+          </header>
+
+          <section id="workarea" class="workarea">
+            <div class="content">
+              <div id="markdownModeBar" class="editor-toolbar markdown-mode-bar hidden"><span id="markdownBarLabel">Markdown</span><div class="editor-toolbar-right"><div id="markdownModeTabs" class="markdown-mode-tabs"><button id="markdownEditButton" class="mode-tab active" type="button">编辑</button><button id="markdownPreviewButton" class="mode-tab" type="button">预览</button></div></div></div>
+              <div id="findBar" class="find-bar hidden"><div class="find-inputs"><input id="findInput" class="find-input" type="search" placeholder="查找当前文档" aria-label="查找当前文档" /><input id="replaceInput" class="find-input replace-input hidden" type="text" placeholder="替换为" aria-label="替换为" /></div><label class="find-case"><input id="findCaseInput" type="checkbox" /> 区分大小写</label><span id="findStatus" class="find-status"></span><button id="findPrevButton" class="find-btn" type="button" aria-label="上一个">↑</button><button id="findNextButton" class="find-btn" type="button" aria-label="下一个">↓</button><button id="replaceButton" class="find-btn replace-action hidden" type="button">替换</button><button id="replaceAllButton" class="find-btn replace-action hidden" type="button">全部替换</button><button id="findCloseButton" class="find-close" type="button" aria-label="关闭查找">×</button></div>
+              <div id="emptyView" class="empty-view">
+                <div class="empty-icon">Q</div>
+                <strong>从左侧选择一个文档以开始</strong>
+                <span>打开文件夹只读取元数据，选中文档后才加载正文。</span>
+              </div>
+              <div id="loadingView" class="empty-view hidden"><div class="spinner"></div><strong>正在读取文档…</strong><span>正文按需加载，不扫描其他文件。</span></div>
+              <div id="textPane" class="editor-pane hidden">
+                <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><span id="editorEncoding">UTF-8</span></div>
+                <textarea id="textEditor" spellcheck="false" aria-label="文本编辑器"></textarea>
+              </div>
+              <div id="markdownPreviewPane" class="markdown-preview-pane hidden"><article id="markdownPreview" class="markdown-preview"></article></div>
+              <div id="excelPane" class="format-pane hidden">
+                <div class="format-toolbar"><div id="sheetTabs" class="sheet-tabs"></div><span id="excelMeta" class="format-meta"></span></div>
+                <div id="excelTableWrap" class="excel-table-wrap"></div>
+              </div>
+              <div id="pdfPane" class="format-pane hidden">
+                <div class="format-toolbar"><span id="pdfPageLabel">PDF 连续阅读 · 第 1 / 1 页</span><span class="format-meta">上下滚动翻页</span></div>
+                <div id="pdfCanvasWrap" class="pdf-canvas-wrap"></div>
+              </div>
+              <div id="docxPane" class="format-pane hidden">
+                <div class="format-toolbar"><span class="format-meta">DOCX 阅读视图</span><span class="format-meta">不修改原文档</span></div>
+                <article id="docxContent" class="docx-content"></article>
+              </div>
+              <div id="unsupportedView" class="empty-view hidden">
+                <div class="empty-icon muted">…</div>
+                <strong id="unsupportedTitle">暂未接入该文件类型</strong>
+                <span id="unsupportedMessage">当前 P0 Demo 先验证文本文件闭环。</span>
+              </div>
+              <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span></footer>
+            </div>
+            <aside id="notesPanel" class="notes-panel hidden" aria-label="文档批注">
+              <div class="notes-head"><div><strong>文档批注</strong><div id="noteFileLabel" class="note-file">未选择文档</div></div><button id="closeNotesButton" class="icon-btn" type="button" aria-label="关闭批注">×</button></div>
+              <div class="notes-hint">批注独立保存在目标文件同目录的伴生文件中；重命名会同步更新 qnote。</div>
+              <button id="recoverNotesButton" class="btn note-recover hidden" type="button">备份损坏 qnote 并新建</button>
+              <div id="notesList" class="notes-list"></div>
+              <div class="note-compose"><div id="noteContextHint" class="note-context-hint">当前批注默认关联全文。</div><textarea id="noteInput" class="note-input" placeholder="输入一条批注…"></textarea><div class="note-compose-row"><select id="noteScope" class="note-scope"><option value="general">全文</option><option value="selection">当前选区</option><option value="page">当前页</option><option value="cell">当前单元格</option></select><button id="addNoteButton" class="btn primary" type="button">添加</button></div></div>
+            </aside>
+            <button id="notesBtn" class="notes-float" type="button" disabled aria-label="打开批注面板">批注 <span id="noteCount">0</span></button>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div id="menu" class="menu hidden" role="menu"></div>
+
+    <div id="nameOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
+      <div class="modal">
+        <div class="modal-head"><strong id="nameTitle">输入名称</strong><button id="nameClose" class="icon-btn" type="button" aria-label="关闭">×</button></div>
+        <div class="modal-body"><label id="nameLabel" class="field-label" for="nameInput">名称</label><input id="nameInput" class="text-input" autocomplete="off" placeholder="请输入名称" /><div id="nameHint" class="modal-hint"></div><div class="modal-actions"><button id="nameCancel" class="btn" type="button">取消</button><button id="nameOk" class="btn primary" type="button">确定</button></div></div>
+      </div>
+    </div>
+
+    <div id="settingsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal settings-modal">
+        <div class="settings-titlebar"><div class="settings-title-icon">⚙</div><div><strong id="settingsTitle">QuickEdit 设置</strong><small>自定义编辑体验，让修改更高效</small></div><button id="settingsClose" class="icon-btn" type="button" aria-label="关闭设置">×</button></div>
+        <div class="modal-body settings-body">
+          <section class="settings-card"><div class="settings-card-heading"><div class="settings-card-icon">▤</div><div><strong>可编辑文本后缀</strong><small>填写允许直接编辑的文件后缀，使用逗号或空格分隔。</small></div><button id="settingsResetDefaults" class="settings-reset" type="button">↶ 恢复默认</button></div><div class="settings-grid"><label class="setting-field"><span class="sr-only">可编辑文本后缀</span><textarea id="textExtensionsInput" class="settings-textarea" spellcheck="false"></textarea><small>示例：.txt, .md, .json</small></label><label class="setting-field"><span>文本大小上限（MB）</span><input id="maxTextSizeInput" class="text-input" type="number" min="1" step="1" /><small>超过此大小的文件将使用普通方式打开</small></label></div></section>
+          <section class="settings-card settings-theme-card"><div class="settings-card-heading"><div class="settings-card-icon">◉</div><div><strong>外观主题</strong><small>当前版本保证浅色稳定体验，深色主题将在 V2 完成</small></div></div><select id="themeSelect" class="theme-select-hidden" aria-hidden="true"><option value="light">日间模式</option><option value="dark">深色模式</option></select><div class="theme-options"><button id="themeLightButton" class="theme-option active" type="button"><span class="theme-option-icon">☼</span><span><strong>浅色模式</strong><small>简洁明亮，专注高效</small></span></button><button id="themeDarkButton" class="theme-option" type="button"><span class="theme-option-icon">☾</span><span><strong>深色模式</strong><small>暂不支持，已排入 V2</small></span></button><button id="themeSystemButton" class="theme-option" type="button"><span class="theme-option-icon">◯</span><span><strong>跟随系统</strong><small>暂不支持，已排入 V2</small></span></button></div></section>
+          <section class="settings-card settings-options-card"><div class="settings-card-heading"><div class="settings-card-icon">☷</div><div><strong>其他选项</strong><small>个性化你的编辑体验</small></div></div><div class="settings-check-grid"><label class="check-field"><input id="confirmCloseInput" type="checkbox" /><span><strong>关闭前确认未保存修改</strong><small>当有未保存的修改时，关闭前弹出确认提示</small></span></label><label class="check-field"><input id="annotationEnabledInput" type="checkbox" /><span><strong>启用本地批注</strong><small>支持为代码添加本地批注，便于后续查看</small></span></label><label class="check-field"><input id="restoreSessionInput" type="checkbox" /><span><strong>恢复上次工作区</strong><small>下次打开时，自动恢复上次的文件和编辑状态</small></span></label><label class="check-field"><input id="shellContextMenuInput" type="checkbox" /><span><strong>Windows 右键打开</strong><small>在文件资源管理器右键菜单中添加“用 QuickEdit 打开”</small></span></label><label class="check-field"><input id="shellOpenWithInput" type="checkbox" /><span><strong>加入打开方式候选</strong><small>在“打开方式”菜单中显示 QuickEdit</small></span></label></div></section>
+          <div class="modal-actions settings-actions"><button id="settingsCancel" class="btn" type="button">取消</button><button id="settingsSave" class="btn primary" type="button">✓ 保存设置</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="helpOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="modal help-modal">
+        <div class="modal-head"><strong id="helpTitle">QuickEdit 帮助</strong><button id="helpClose" class="icon-btn" type="button" aria-label="关闭帮助">×</button></div>
+        <article id="helpContent" class="help-content"></article>
+      </div>
+    </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </body>
+</html>
