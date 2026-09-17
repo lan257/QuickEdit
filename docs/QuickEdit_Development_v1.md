@@ -53,7 +53,7 @@ Windows 磁盘、%APPDATA% 配置、资源管理器 Shell
 | `create_folder` / `create_document` | 新建文件夹/文档（写入磁盘） |
 | `load_annotations` / `save_annotations` / `recover_annotations` | `.qnote` 伴生批注读写；目标失效（stale）标记与恢复 |
 | `rename_document` | 重命名文件或文件夹（含 `.qnote` 伴生同步） |
-| `launch_terminal` | 拉起外部 `cmd.exe`（见 §7） |
+| `terminal_spawn` / `terminal_write` / `terminal_resize` / `terminal_kill` | 内置 xterm 面板对应的 PTY 生命周期、输入输出与尺寸同步（见 §7） |
 | `reveal_in_explorer` | 资源管理器中显示 |
 | `set_shell_integration` | 资源管理器右键 / Open With 注册开关（`reg` 写注册表） |
 
@@ -85,18 +85,20 @@ Windows 磁盘、%APPDATA% 配置、资源管理器 Shell
 
 ## 6. 查找 / 替换层（main.ts）
 
-- 入口：`Ctrl+F`（查找）、`Ctrl+H`（替换模式）、`Ctrl+``（外部终端）。
+- 入口：`Ctrl+F`（查找）、`Ctrl+H`（替换模式）；Ctrl+反引号键打开/关闭内置终端面板。
 - 核心函数：`findSupported`（判断当前文档是否支持查找）、`refreshFindMatches`（匹配计数）、`findNextMatch`、`replaceCurrentMatch`、`replaceAllMatches`、`openFindBar`。
 - 查找栏 `#findBar`：查找/替换输入、大小写开关、状态计数、上/下一个、替换、全部替换、关闭。
 - 约束：查找状态不写入原文件、不影响 dirty；PDF/DOCX/XLSX 不承诺完整替换（V2 扩展）。
 
-## 7. 外部 Terminal
+## 7. 内置 Terminal（xterm + portable_pty）
 
-- 命令：`launch_terminal(cwd?)` → `cmd.exe /K cd /d <cwd>`。
-- **必须**带 `CREATE_NEW_CONSOLE (0x10)` 进程标志：否则继承非交互 stdin，`cmd /K` 立即 EOF 退出（已实测复现）。
-- cwd 规则：当前文件属于 Workspace → Workspace Root；固定"文档"区文件 → 文件所在目录；无当前文件 → `%USERPROFILE%`。
-- 启动失败只弹错误 Toast，不影响主窗口。
-- 不做嵌入式 PTY / Terminal Panel（V1 明确放弃，无 Task Runner / Build / Git UI）。
+- 前端使用 `@xterm/xterm` 和 `@xterm/addon-fit` 渲染终端，`TerminalSession` 管理多个会话、Shell、cwd、状态和宿主节点。
+- `terminal_spawn` 创建 Rust PTY；`terminal_write` 写入键盘输入；`terminal_resize` 同步行列；`terminal_kill` 结束会话。
+- Rust 端使用 `portable_pty` 启动 PowerShell 或 `cmd.exe`，通过 `terminal-output` / `terminal-exit` 事件向前端传输输出和退出状态。
+- cwd 规则：Workspace 或其子文件进入 Workspace Root；固定“文档”区文件和无当前文件时进入文档/quickedit目录。
+- 终端面板支持打开/关闭、Shell 切换、重启、多个会话切换和拖拽调整高度；启动失败只弹错误 Toast，不影响主窗口。
+- WebView2 显示层必须保留 xterm 辅助输入框的透明/零尺寸样式，避免原生 `textarea` 作为底部黑色长条露出。
+- V1 不实现 Task Runner、Build/Run 按钮、Debugger 或 Git UI；这些与内置终端本身无关，保留为 Future/V2 边界。
 
 ## 8. 交互与剪贴板
 
@@ -118,7 +120,7 @@ Windows 磁盘、%APPDATA% 配置、资源管理器 Shell
 pnpm install
 pnpm tauri dev                    # 开发运行（Vite 1420）
 pnpm build                        # tsc + vite build
-cargo test --manifest-path src-tauri/Cargo.toml   # 6 个单元测试
+cargo test --manifest-path src-tauri/Cargo.toml   # 8 个单元测试
 pnpm tauri build                  # release + MSI + NSIS
 ```
 
@@ -132,7 +134,7 @@ pnpm tauri build                  # release + MSI + NSIS
 
 ### 10.3 release 验收要点
 
-- 外部终端：验证子进程 `cmd.exe` 在 500ms/3000ms 仍存活、命令行含正确 `cd /d <cwd>`（dev 栈合成 `Ctrl+`` 派发的偶发无 spawn 属 harness 环境现象，release 已验证正常，不要据此改代码）。
+- 内置终端验收：验证面板打开、xterm 辅助输入框计算样式为透明且零尺寸、PowerShell/cmd PTY 启动和输出事件、Shell 切换、重启/关闭及 cwd；WebView2 CDP 使用 browser 级 `Target.attachToTarget(flatten=true)`。
 - 剪贴板：核对系统剪贴板实际内容与 Toast。
 - 格式回归：PDF/XLSX/DOCX/Markdown 全量打开-编辑-保存链路。
 
@@ -141,7 +143,7 @@ pnpm tauri build                  # release + MSI + NSIS
 | 坑 | 原因 | 对策 |
 |---|---|---|
 | Vite watcher `EBUSY`（`设计文档/*.md` 被占用） | 外部进程锁定设计文档 | `vite.config.ts` watcher `ignore`：`**/src-tauri/**`、`**/.dsh/**`、`**/target/**`、`**/设计文档/**` |
-| `cmd.exe /K` 秒退 | 继承非交互 stdin EOF | 进程标志 `CREATE_NEW_CONSOLE` |
+| 内置终端底部出现黑色长条 | WebView2 未应用 xterm 辅助 textarea 样式 | 作用域样式保持透明/零尺寸并保留焦点；同时检查 xterm viewport 尺寸 |
 | `navigator.clipboard` 复制失败 | 需要 user activation，CDP 下必现 | 官方 clipboard-manager 插件 |
 | 预览选区点批注浮层丢失 | 面板点击导致失焦 | `selectionchange` 时快照选区 |
 | 双 dev 实例端口/单实例冲突 | 都占 1420 + 同 identifier | `--config` 覆盖 identifier；先停旧实例 |

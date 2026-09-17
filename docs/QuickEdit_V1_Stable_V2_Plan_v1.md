@@ -12,7 +12,7 @@
 - `设计文档/QuickEdit_Annotation_V2_Requirements_Design.md`（Annotation V2，Draft）
 - `设计文档/QuickEdit_Agent_Change_Review_MCP_Requirements_Design.md`（Change Review & MCP，Draft）
 - 当前 QuickEdit P0–P5 实现与实测记录
-- 用户新增外部终端与路径复制交互要求
+- 用户新增内置终端与路径复制交互要求
 
 ---
 
@@ -54,14 +54,12 @@
 - PDF/DOCX/XLSX 不在本阶段承诺完整替换。
 - 搜索状态不写入原文件，不影响 dirty 状态。
 
-### V1-2 外部 Workspace Terminal
+### V1-2 内置 Workspace Terminal
 
-- `Ctrl+`` 或文件/工作区菜单直接启动外部 `cmd.exe`；若后续确认 Windows Terminal 可用，可优先调用 `wt.exe`。
-- 当前文件属于 Workspace 时，cwd 为 Workspace Root。
-- 固定“文档”区域文件，cwd 为文件所在目录。
-- 无当前文件时，cwd 使用 `%USERPROFILE%`。
-- 外部窗口负责输入、输出、Ctrl+C、复制、粘贴、Resize 和关闭；QuickEdit 不嵌入 PTY、不维护 Terminal Panel。
-- 启动失败只显示错误 Toast，不得导致 QuickEdit 主窗口退出。
+- Ctrl+反引号键或文件/工作区入口打开内置终端面板，支持 PowerShell 与 `cmd.exe`。
+- 当前文件属于 Workspace 时，cwd 为 Workspace Root；“文档”区域文件和无当前文件时进入文档/quickedit目录。
+- 前端由 `@xterm/xterm` 渲染，Rust 端使用 `portable_pty` 管理输入、输出、Resize、重启和关闭。
+- 面板支持多个终端会话和 Shell 切换；启动失败只显示错误 Toast，不得导致 QuickEdit 主窗口退出。
 - 不做 Task Runner、Build、Debugger、Git UI、SSH、AI/Agent 操作。
 
 ### V1-3 设置弹窗布局
@@ -123,7 +121,7 @@
 |---|---|---|---|
 | V1-A | 查找/替换状态层与文本 UI | 当前 TextHandler | Ctrl+F/H、替换、dirty/保存回归通过 |
 | V1-B | 设置弹窗分组与日间主题 | V1-A 可独立进行 | 参考图布局、浅色保存恢复、深色占位提示、弹窗滚动通过 |
-| V1-C | 外部 Terminal 启动（原 PTY 方案按用户决定简化为直接调用） | V1-A/B 不阻塞 | Ctrl+`/右键拉起 cmd.exe、cwd 正确、release 存活 ≥3s ✅ |
+| V1-C | 内置 Terminal（xterm + portable_pty） | V1-A/B 不阻塞 | Ctrl+反引号/文件或工作区入口打开面板，cwd、Shell 切换和 PTY 生命周期回归通过 ✅ |
 | V1-D | 全量回归与发布包 | V1-A/B/C | 查找/替换、设置、主题、路径复制实测通过；候选 MSI/NSIS 已生成 ✅ |
 | V1-E | 稳定基线 | V1-D | 版本号确认为 `1.1.0` → 版本说明 + Git tag `v1.1.0` + GitHub Release 已完成 |
 
@@ -133,9 +131,9 @@
 
 - **AC-V1-001**：文本/Markdown 打开后 `Ctrl+F` 显示应用内查找状态，不依赖浏览器原生查找。
 - **AC-V1-002**：`Ctrl+H` 可在当前文本源中替换一次或全部替换，并正确维护 dirty 状态。
-- **AC-V1-003**：`Ctrl+`` 或文件/工作区菜单启动外部终端窗口，窗口可交互输入并显示输出。
-- **AC-V1-004**：外部终端 cwd 按 Workspace Root/单文件目录/默认目录规则确定。
-- **AC-V1-005**：外部终端启动失败只显示错误提示，不导致 QuickEdit 主窗口退出；右键复制路径可将完整路径写入系统剪贴板。
+- **AC-V1-003**：Ctrl+反引号键或文件/工作区入口打开内置终端面板，支持交互输入并显示 PTY 输出。
+- **AC-V1-004**：内置终端 cwd 按 Workspace Root/文档区域目录规则确定，并可在 Shell 切换后重新建立会话。
+- **AC-V1-005**：内置终端启动失败只显示错误提示，不导致 QuickEdit 主窗口退出；右键复制路径可将完整文件路径写入系统剪贴板。
 - **AC-V1-006**：设置弹窗分组清晰、窄窗口可滚动、保存失败保留输入。
 - **AC-V1-007**：浅色主题保存后重启保持；点击深色主题时明确提示暂不支持，不进入半成品 dark 状态。
 - **AC-V1-008**：MSI/NSIS 安装、升级、卸载和 Shell 注册/清理均有 Windows 本机证据。
@@ -146,8 +144,8 @@
 
 ## 8. 风险与待确认项
 
-1. 当前源码未发现显式 Ctrl+F 实现；V1 必须实现应用级查找，不能把 WebView 默认行为当作验收证据。
-2. Windows PTY 方案需在实现前确认 Rust crate/Windows ConPTY 兼容性；若 PTY 依赖风险过高，先做 PowerShell 交互最小 Demo 再扩展。
+1. 应用级 Ctrl+F/H 查找替换已在当前源码落地；后续回归仍需以应用内查找状态为准，不能把 WebView 默认行为当作验收证据。
+2. Windows PTY 已落地为 Rust `portable_pty` + xterm；后续持续验证不同 Shell、生命周期、输入输出和 WebView2 兼容性。
 3. HTML Preview 默认排入 V2；如果希望 HTML 也进入 V1，需要重新调整 V1 封包范围和工期。
 4. 稳定版版本号已确认并发布为 `1.1.0`，tag 为 `v1.1.0`。
 5. 完整暗色主题移入 V2；V1 只保证浅色稳定和深色占位提示。Terminal 面板高度采用固定默认值，后续再评估记忆。
@@ -157,4 +155,4 @@
 
 ## 9. 本计划明确不实现
 
-本文件仅完成 V1/V2 需求对齐、范围冻结、实施顺序和验收设计。除读取文档、核对现状和写入本计划外，本轮不修改 QuickEdit 源码、不新增 Terminal、不实现替换、不改主题、不重新打包。
+本文件用于 V1/V2 需求对齐、范围冻结、实施顺序和验收设计；截至 `v1.1.0`，Terminal、查找替换、设置和主题等 V1 项已在源码落地。本文件不承载后续新增功能的实现过程。
