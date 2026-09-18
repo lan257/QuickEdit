@@ -4,8 +4,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
 import MarkdownIt from "markdown-it";
 import configHelpMarkdown from "./QuickEdit_Config_Help.md?raw";
 import type * as XLSX from "xlsx";
@@ -48,7 +46,6 @@ import {
   type TerminalContext,
   type TerminalExitEvent,
   type TerminalOutputEvent,
-  type TerminalSession,
   type TextDocument,
   type TextSession,
   type ThemeMode,
@@ -83,9 +80,7 @@ import {
   pdfPaneElement, recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput,
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
   settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
-  statusModeElement, statusPathElement, terminalAddButton, terminalCloseButton, terminalHostElement,
-  terminalListElement, terminalPanelElement, terminalResizeHandle, terminalRestartButton, terminalShellSelect,
-  terminalStatusElement, terminalTitleElement, terminalToggleButton, textEditorHostElement, textExtensionsInput,
+  statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
   textPaneElement, themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
   treeElement, treeSearchInput, treeSortSelect, unsupportedMessageElement, unsupportedTitleElement, unsupportedViewElement,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
@@ -93,6 +88,7 @@ import {
 } from "./ui/elements";
 import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
+import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
 markdownRenderer.renderer.rules.image = (tokens, index) => {
@@ -1887,306 +1883,8 @@ async function terminalContextFor(target: TreeNode | null): Promise<TerminalCont
   return { cwd: undefined, scopeKey: "default", scopeLabel: "默认目录" };
 }
 
-const terminalTheme = {
-  background: "#fbfcfe",
-  foreground: "#222b3a",
-  cursor: "#5b6cf9",
-  cursorAccent: "#ffffff",
-  selectionBackground: "rgba(91, 108, 249, 0.22)",
-};
-let terminalSessions: TerminalSession[] = [];
-let activeTerminalId: string | null = null;
-let terminalVisible = false;
-let terminalSequence = 0;
+const terminalFeature = createTerminalFeature({ contextFor: terminalContextFor });
 
-function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-function activeTerminalSession(): TerminalSession | null {
-  return terminalSessions.find((session) => session.id === activeTerminalId) || null;
-}
-
-function updateTerminalHeader(): void {
-  const session = activeTerminalSession();
-  terminalTitleElement.textContent = session ? `${session.title} · ${session.scopeLabel}` : "终端";
-  terminalShellSelect.disabled = !session;
-  if (session) terminalShellSelect.value = session.shell;
-  terminalStatusElement.textContent = session?.status || (session && !session.running ? "已退出" : "");
-}
-
-function renderTerminalList(): void {
-  terminalListElement.replaceChildren();
-  if (terminalSessions.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "terminal-list-empty";
-    empty.textContent = "暂无终端，点击右上角＋新建。";
-    terminalListElement.append(empty);
-    updateTerminalHeader();
-    return;
-  }
-  for (const session of terminalSessions) {
-    const item = document.createElement("div");
-    item.className = `terminal-list-item${session.id === activeTerminalId ? " active" : ""}`;
-    item.setAttribute("role", "button");
-    item.tabIndex = 0;
-    const main = document.createElement("span");
-    main.className = "terminal-list-item-main";
-    const title = document.createElement("span");
-    title.className = "terminal-list-item-title";
-    title.textContent = `${session.title}${session.spawning ? " · 正在启动…" : session.running ? "" : " · 已退出"}`;
-    const scope = document.createElement("span");
-    scope.className = "terminal-list-item-scope";
-    scope.textContent = session.scopeLabel;
-    main.append(title, scope);
-    const close = document.createElement("button");
-    close.type = "button";
-    close.className = "terminal-list-item-close";
-    close.title = "关闭此终端";
-    close.textContent = "×";
-    close.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void closeTerminalSession(session.id);
-    });
-    item.append(main, close);
-    item.addEventListener("click", () => activateTerminal(session.id));
-    item.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        activateTerminal(session.id);
-      }
-    });
-    terminalListElement.append(item);
-  }
-  updateTerminalHeader();
-}
-
-function setTerminalVisible(visible: boolean): void {
-  terminalVisible = visible;
-  terminalPanelElement.classList.toggle("hidden", !visible);
-  terminalToggleButton.classList.toggle("active", visible);
-  if (visible) {
-    renderTerminalList();
-    requestAnimationFrame(fitTerminal);
-  }
-}
-
-function fitTerminal(): void {
-  const session = activeTerminalSession();
-  if (!session || !terminalVisible) return;
-  try {
-    session.fitAddon.fit();
-  } catch {
-    /* 面板尺寸为 0 时忽略 */
-  }
-}
-
-async function spawnTerminal(session: TerminalSession): Promise<void> {
-  if (!hasTauriRuntime() || session.spawning || session.running) return;
-  session.spawning = true;
-  session.status = "正在启动…";
-  const processId = `${session.id}-run-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  session.processId = processId;
-  renderTerminalList();
-  try {
-    await invoke("terminal_spawn", {
-      sessionId: processId,
-      cwd: session.cwd,
-      shell: session.shell,
-      rows: session.terminal.rows,
-      cols: session.terminal.cols,
-    });
-    session.running = true;
-    session.status = "";
-  } catch (error) {
-    session.processId = null;
-    session.status = "启动失败";
-    showToast(failureMessage(error), true);
-  } finally {
-    session.spawning = false;
-    renderTerminalList();
-  }
-}
-
-async function killTerminal(session: TerminalSession): Promise<void> {
-  const processId = session.processId;
-  if (hasTauriRuntime() && processId && (session.running || session.spawning)) {
-    try {
-      await invoke("terminal_kill", { sessionId: processId });
-    } catch {
-      /* 终端已退出时忽略 */
-    }
-  }
-  session.processId = null;
-  session.running = false;
-  session.spawning = false;
-  session.status = "已退出";
-}
-
-function createTerminalSession(context: TerminalContext): TerminalSession {
-  terminalSequence += 1;
-  const host = document.createElement("div");
-  host.className = "terminal-instance-host hidden";
-  terminalHostElement.append(host);
-  const terminal = new Terminal({
-    fontFamily: '"Cascadia Code", Consolas, "Microsoft YaHei", monospace',
-    fontSize: 13,
-    lineHeight: 1.2,
-    cursorBlink: true,
-    scrollback: 5000,
-    theme: terminalTheme,
-  });
-  const fitAddon = new FitAddon();
-  terminal.loadAddon(fitAddon);
-  const session: TerminalSession = {
-    id: `terminal-${Date.now()}-${terminalSequence}`,
-    processId: null,
-    title: `终端 ${terminalSequence}`,
-    scopeKey: context.scopeKey,
-    scopeLabel: context.scopeLabel,
-    cwd: context.cwd,
-    shell: "powershell",
-    terminal,
-    fitAddon,
-    host,
-    running: false,
-    spawning: false,
-    status: "",
-  };
-  terminal.onData((data) => {
-    const processId = session.processId;
-    if (!session.running || !processId) return;
-    void invoke("terminal_write", { sessionId: processId, data }).catch((error) => showToast(failureMessage(error), true));
-  });
-  terminal.onResize(({ rows, cols }) => {
-    const processId = session.processId;
-    if (!session.running || !processId) return;
-    void invoke("terminal_resize", { sessionId: processId, rows, cols }).catch(() => undefined);
-  });
-  terminal.open(host);
-  terminalSessions.push(session);
-  renderTerminalList();
-  return session;
-}
-
-function activateTerminal(id: string): void {
-  const session = terminalSessions.find((item) => item.id === id);
-  if (!session) return;
-  activeTerminalId = id;
-  setTerminalVisible(true);
-  for (const item of terminalSessions) item.host.classList.toggle("hidden", item.id !== id);
-  renderTerminalList();
-  requestAnimationFrame(() => {
-    fitTerminal();
-    session.terminal.focus();
-  });
-}
-
-async function closeTerminalSession(id: string): Promise<void> {
-  const index = terminalSessions.findIndex((session) => session.id === id);
-  if (index < 0) return;
-  const session = terminalSessions[index];
-  const wasActive = activeTerminalId === id;
-  await killTerminal(session);
-  session.terminal.dispose();
-  session.host.remove();
-  terminalSessions.splice(index, 1);
-  if (wasActive) {
-    const next = terminalSessions[index] || terminalSessions[index - 1];
-    activeTerminalId = next?.id || null;
-    if (activeTerminalId) {
-      activateTerminal(activeTerminalId);
-    } else {
-      setTerminalVisible(false);
-      renderTerminalList();
-    }
-  } else {
-    renderTerminalList();
-  }
-}
-
-async function openTerminalForTarget(target: TreeNode | null = activeNode): Promise<void> {
-  try {
-    const context = await terminalContextFor(target);
-    let session = terminalSessions.find((item) => item.scopeKey === context.scopeKey);
-    if (!session) session = createTerminalSession(context);
-    activateTerminal(session.id);
-    await spawnTerminal(session);
-    session.terminal.focus();
-  } catch (error) {
-    showToast(failureMessage(error), true);
-  }
-}
-
-async function addManualTerminal(): Promise<void> {
-  try {
-    const context = await terminalContextFor(activeNode);
-    const session = createTerminalSession(context);
-    activateTerminal(session.id);
-    await spawnTerminal(session);
-    session.terminal.focus();
-  } catch (error) {
-    showToast(failureMessage(error), true);
-  }
-}
-
-async function toggleTerminal(force?: boolean): Promise<void> {
-  if (force === false || (typeof force !== "boolean" && terminalVisible)) {
-    setTerminalVisible(false);
-    return;
-  }
-  await openTerminalForTarget(activeNode);
-}
-
-async function restartTerminal(): Promise<void> {
-  const session = activeTerminalSession();
-  if (!session) return;
-  session.terminal.reset();
-  await killTerminal(session);
-  await spawnTerminal(session);
-  session.terminal.focus();
-}
-
-function bindTerminalResizeDrag(): void {
-  let startY = 0;
-  let startHeight = 0;
-  const onMove = (event: MouseEvent) => {
-    const height = Math.min(Math.max(startHeight + (startY - event.clientY), 120), Math.floor(window.innerHeight * 0.75));
-    terminalPanelElement.style.height = `${height}px`;
-    fitTerminal();
-  };
-  const onUp = () => {
-    window.removeEventListener("mousemove", onMove);
-    window.removeEventListener("mouseup", onUp);
-    fitTerminal();
-  };
-  terminalResizeHandle.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    startY = event.clientY;
-    startHeight = terminalPanelElement.getBoundingClientRect().height;
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  });
-}
-
-function bindTerminalEvents(): void {
-  terminalToggleButton.addEventListener("click", () => void openTerminalForTarget(activeNode));
-  folderTerminalButton.addEventListener("click", () => void openTerminalForTarget(activeNode));
-  folderCopyPathButton.addEventListener("click", () => void copyActivePath());
-  terminalAddButton.addEventListener("click", () => void addManualTerminal());
-  terminalCloseButton.addEventListener("click", () => void toggleTerminal(false));
-  terminalRestartButton.addEventListener("click", () => void restartTerminal());
-  terminalShellSelect.addEventListener("change", () => {
-    const session = activeTerminalSession();
-    if (!session) return;
-    session.shell = terminalShellSelect.value === "cmd" ? "cmd" : "powershell";
-    void restartTerminal();
-  });
-  bindTerminalResizeDrag();
-}
 
 function containsNode(parent: TreeNode, target: TreeNode): boolean {
   if (parent.id === target.id) return true;
@@ -2488,7 +2186,7 @@ function bindEvents(): void {
     }
     if (event.ctrlKey && (event.code === "Backquote" || event.key === "`")) {
       event.preventDefault();
-      void toggleTerminal();
+      void terminalFeature.toggle();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
@@ -2512,9 +2210,11 @@ function bindEvents(): void {
   });
   window.addEventListener("resize", () => {
     hideMenu();
-    fitTerminal();
+    terminalFeature.fit();
   });
-  bindTerminalEvents();
+  terminalFeature.bindEvents();
+  folderTerminalButton.addEventListener("click", () => void terminalFeature.openFor(activeNode));
+  folderCopyPathButton.addEventListener("click", () => void copyActivePath());
 }
 
 async function openPaths(paths: string[]): Promise<void> {
@@ -2616,20 +2316,8 @@ async function initialize(): Promise<void> {
     if (event.payload.length > 0) void openPaths(event.payload);
     void bringWindowToFront();
   });
-  void listen<TerminalOutputEvent>("terminal-output", (event) => {
-    const session = terminalSessions.find((item) => item.processId === event.payload.sessionId);
-    session?.terminal.write(base64ToBytes(event.payload.data));
-  });
-  void listen<TerminalExitEvent>("terminal-exit", (event) => {
-    const session = terminalSessions.find((item) => item.processId === event.payload.sessionId);
-    if (!session) return;
-    session.processId = null;
-    session.running = false;
-    session.spawning = false;
-    session.status = "已退出";
-    session.terminal.write("\r\n\x1b[90m[进程已退出，按 ↻ 或重新打开面板可重启]\x1b[0m\r\n");
-    renderTerminalList();
-  });
+  void listen<TerminalOutputEvent>("terminal-output", (event) => terminalFeature.handleOutput(event.payload));
+  void listen<TerminalExitEvent>("terminal-exit", (event) => terminalFeature.handleExit(event.payload));
 }
 
 void initialize();
