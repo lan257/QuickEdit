@@ -1,9 +1,9 @@
 import {
-  docxPaneElement, emptyViewElement, excelPaneElement, folderInfoPaneElement, loadingViewElement,
+  docxPaneElement, emptyViewElement, excelPaneElement, folderInfoPaneElement, htmlPreviewPaneElement, loadingViewElement,
   markdownModeBarElement, markdownPreviewPaneElement, pdfPaneElement, textPaneElement,
 } from "./elements";
 
-export type ViewKind = "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx" | "image";
+export type ViewKind = "empty" | "loading" | "folder" | "text" | "markdownPreview" | "htmlPreview" | "xlsx" | "pdf" | "docx" | "image";
 
 let currentView: ViewKind = "empty";
 let markdownBarEnabled = false;
@@ -16,6 +16,7 @@ export function showView(view: ViewKind): void {
   folderInfoPaneElement.classList.toggle("hidden", view !== "folder");
   textPaneElement.classList.toggle("hidden", view !== "text");
   markdownPreviewPaneElement.classList.toggle("hidden", view !== "markdownPreview");
+  htmlPreviewPaneElement.classList.toggle("hidden", view !== "htmlPreview");
   excelPaneElement.classList.toggle("hidden", view !== "xlsx");
   pdfPaneElement.classList.toggle("hidden", view !== "pdf");
   docxPaneElement.classList.toggle("hidden", view !== "docx");
@@ -30,6 +31,6 @@ export function setMarkdownBarEnabled(enabled: boolean): void {
 }
 
 function applyMarkdownBar(): void {
-  const visible = (currentView === "text" || currentView === "markdownPreview") && markdownBarEnabled;
+  const visible = (currentView === "text" || currentView === "markdownPreview" || currentView === "htmlPreview") && markdownBarEnabled;
   markdownModeBarElement.classList.toggle("hidden", !visible);
 }

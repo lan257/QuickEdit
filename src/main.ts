@@ -71,8 +71,8 @@ import {
   addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement,
   editorEncodingElement, editorFileLabelElement, excelMetaElement, excelTableWrapElement,
   fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
-  findStatusElement, logoButton, markdownEditButton, markdownPreviewButton,
-  markdownPreviewElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
+  findStatusElement, logoButton, markdownBarLabelElement, markdownEditButton, markdownPreviewButton,
+  markdownPreviewElement, htmlPreviewFrameElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
   nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
   noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
   noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement, pdfCanvasWrapElement, pdfPageLabelElement,
@@ -141,6 +141,7 @@ let markdownViewMode: MarkdownViewMode = "edit";
 let markdownContentRevision = 0;
 let markdownPreviewRevision = -1;
 let markdownPreviewHtml = "";
+let htmlPreviewRevision = -1;
 let findMatches: Array<{ start: number; end: number }> = [];
 let findMatchIndex = -1;
 let activeAnnotationId: string | null = null;
@@ -647,8 +648,18 @@ function isMarkdownNode(node: TreeNode | null): boolean {
   return node?.kind === "file" && node.extension.toLowerCase() === ".md";
 }
 
+function isHtmlNode(node: TreeNode | null): boolean {
+  const extension = node?.kind === "file" ? node.extension.toLowerCase() : "";
+  return extension === ".html" || extension === ".htm";
+}
+
+function isPreviewableNode(node: TreeNode | null): boolean {
+  return isMarkdownNode(node) || isHtmlNode(node);
+}
+
 function updateMarkdownControls(): void {
-  const enabled = isMarkdownNode(activeNode);
+  const enabled = isPreviewableNode(activeNode);
+  markdownBarLabelElement.textContent = isHtmlNode(activeNode) ? "HTML" : "Markdown";
   markdownEditButton.classList.toggle("active", enabled && markdownViewMode === "edit");
   markdownPreviewButton.classList.toggle("active", enabled && markdownViewMode === "preview");
 }
@@ -667,16 +678,45 @@ function renderMarkdownPreview(): void {
   highlightPreviewAnnotations(markdownPreviewElement, annotationsForPanel());
 }
 
+const HTML_PREVIEW_CSP = "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; style-src 'unsafe-inline'; img-src data: blob:;";
+
+// §8: sanitize the in-memory HTML and render it in a fully sandboxed iframe with a
+// strict CSP. Scripts never execute and no remote resource is fetched.
+async function renderHtmlPreview(): Promise<void> {
+  if (!isHtmlNode(activeNode)) return;
+  const source = activeNode?.content;
+  if (source === undefined) return;
+  if (htmlPreviewRevision === markdownContentRevision) return;
+  const { default: DOMPurify } = await import("dompurify");
+  if (activeNode?.content !== source) return;
+  const clean = DOMPurify.sanitize(source, {
+    FORBID_TAGS: ["script", "iframe", "frame", "object", "embed", "link", "base", "form", "meta"],
+    FORBID_ATTR: ["src", "srcset", "href", "action", "formaction", "data", "code", "codemanager"],
+    USE_PROFILES: { html: true, svg: true },
+  });
+  const document_ = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}"><style>body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:24px;color:#202938;line-height:1.6}img{max-width:100%}</style></head><body>${clean}</body></html>`;
+  htmlPreviewFrameElement.srcdoc = document_;
+  htmlPreviewRevision = markdownContentRevision;
+}
+
 function setMarkdownViewMode(mode: MarkdownViewMode): void {
-  if (!isMarkdownNode(activeNode)) return;
+  if (!isPreviewableNode(activeNode)) return;
   markdownViewMode = mode;
   updateMarkdownControls();
   if (mode === "preview") {
-    renderMarkdownPreview();
-    showView("markdownPreview");
-    statusModeElement.textContent = "Markdown 预览";
-    statusInfoElement.textContent = activeNode?.dirty ? "未保存内容" : "只读预览";
-    updateCursorStatus();
+    if (isHtmlNode(activeNode)) {
+      showView("htmlPreview");
+      statusModeElement.textContent = "HTML 预览";
+      statusInfoElement.textContent = activeNode?.dirty ? "未保存内容" : "只读预览（已净化）";
+      updateCursorStatus();
+      void renderHtmlPreview();
+    } else {
+      renderMarkdownPreview();
+      showView("markdownPreview");
+      statusModeElement.textContent = "Markdown 预览";
+      statusInfoElement.textContent = activeNode?.dirty ? "未保存内容" : "只读预览";
+      updateCursorStatus();
+    }
   } else {
     showView("text");
     statusModeElement.textContent = "文本编辑";
@@ -1384,10 +1424,11 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   pdfPageRendering.clear();
   activePdfPage = 1;
   markdownViewMode = isMarkdownNode(node) ? (options?.preferEdit ? "edit" : "preview") : "edit";
-  setMarkdownBarEnabled(isMarkdownNode(node) && node.kind === "file");
+  setMarkdownBarEnabled(isPreviewableNode(node));
   markdownContentRevision = 0;
   markdownPreviewRevision = -1;
   markdownPreviewHtml = "";
+  htmlPreviewRevision = -1;
   resetAnnotations();
   activeAnnotationId = null;
   notesTagFilter = null;
@@ -1605,9 +1646,10 @@ function markDirty(): void {
   if (!activeNode || !activeSession || !textEditor) return;
   activeNode.dirty = true;
   activeNode.content = textEditor.getText();
-  if (isMarkdownNode(activeNode)) {
+  if (isPreviewableNode(activeNode)) {
     markdownContentRevision += 1;
     markdownPreviewRevision = -1;
+    htmlPreviewRevision = -1;
   }
   updateTextStatus();
   renderTree();

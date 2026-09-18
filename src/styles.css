@@ -253,6 +253,8 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 .image-zoom-label { min-width: 44px; text-align: center; color: var(--muted); font-size: 10px; }
 .image-stage { min-height: 0; flex: 1 1 auto; overflow: auto; display: grid; place-items: center; padding: 24px; background: repeating-conic-gradient(#f0f2f5 0% 25%, #f7f8fa 0% 50%) 50% / 22px 22px; scrollbar-width: thin; scrollbar-color: #c6cddd transparent; }
 .image-element { display: block; max-width: none; transform-origin: center center; box-shadow: 0 10px 30px rgba(30,39,61,.18); background: #fff; }
+.html-preview-pane { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; background: #fff; }
+.html-preview-frame { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
 :root[data-theme="dark"] .image-btn { color: var(--text); border-color: var(--line); background: #292e38; }
 :root[data-theme="dark"] .image-stage { background: repeating-conic-gradient(#20242d 0% 25%, #262b35 0% 50%) 50% / 22px 22px; }
 .statusbar { height: 32px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 14px; border-top: 1px solid var(--line); color: var(--muted); background: #fbfcfe; font-size: 10px; }
