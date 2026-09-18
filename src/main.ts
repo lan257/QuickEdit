@@ -68,7 +68,7 @@ import {
   samePath,
 } from "./core/format";
 import {
-  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement,
+  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docRunButton, docxContentElement,
   editorEncodingElement, editorFileLabelElement, excelMetaElement, excelTableWrapElement,
   fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
   findStatusElement, logoButton, markdownBarLabelElement, markdownEditButton, markdownPreviewButton,
@@ -76,7 +76,7 @@ import {
   nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
   noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
   noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement, pdfCanvasWrapElement, pdfPageLabelElement,
-  recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput,
+  recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput, runnersInput,
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
   settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
@@ -92,6 +92,7 @@ import { renderInfoView, type InfoViewAction, type InfoViewKind, type InfoViewMe
 import { setMarkdownBarEnabled, showView } from "./ui/views";
 import { activeHandlerId, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler } from "./core/handler-registry";
 import { registerFormatHandlers } from "./handlers/index";
+import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -598,6 +599,7 @@ function updateHeader(): void {
     noteCountElement.textContent = "0";
     notePanelCountElement.textContent = "0";
     updateMarkdownControls();
+    updateRunButton(null);
     statusModeElement.textContent = "—";
     statusInfoElement.textContent = "";
     statusPathElement.textContent = "";
@@ -622,6 +624,7 @@ function updateHeader(): void {
     statusPathElement.title = activeNode.path;
     renderFolderInfo(activeNode);
     updateMarkdownControls();
+    updateRunButton(null);
     updateCursorStatus();
     return;
   }
@@ -637,12 +640,32 @@ function updateHeader(): void {
   notesButton.disabled = !config.annotations.enabled;
   notesButton.classList.remove("hidden");
   updateMarkdownControls();
+  updateRunButton(activeNode);
   statusPathElement.textContent = formatModifiedTime(activeNode.modifiedTime);
   statusPathElement.title = activeNode.path;
   updateCursorStatus();
   const annotationTotal = annotationDocument()?.annotations.length || 0;
   noteCountElement.textContent = String(annotationTotal);
   notePanelCountElement.textContent = String(annotationTotal);
+}
+
+function updateRunButton(node: TreeNode | null): void {
+  const runnable = Boolean(node && node.kind === "file" && isRunnable(node.extension, config.runners));
+  docRunButton.classList.toggle("hidden", !runnable);
+}
+
+async function runActiveDocument(): Promise<void> {
+  const node = activeNode;
+  if (!node || node.kind !== "file") return;
+  const workspaceRoot = roots
+    .map((root) => workspaceRootFor(node, root))
+    .find((root): root is TreeNode => root !== null);
+  const plan = buildRunPlan(node, config.runners, workspaceRoot?.path || "");
+  if (!plan) {
+    showToast("该文件没有可用的运行方式。", true);
+    return;
+  }
+  await terminalFeature.runCommand(node, plan.shell, plan.command);
 }
 
 function isMarkdownNode(node: TreeNode | null): boolean {
@@ -1766,6 +1789,7 @@ function openSettings(): void {
   restoreSessionInput.checked = config.workspace.restoreLastSession;
   shellContextMenuInput.checked = config.shell.contextMenu;
   shellOpenWithInput.checked = config.shell.openWith;
+  runnersInput.value = config.runners.length > 0 ? JSON.stringify(config.runners, null, 2) : "";
   applyTheme(config.appearance.theme);
   settingsOverlayElement.classList.remove("hidden");
   window.setTimeout(() => textExtensionsInput.focus(), 0);
@@ -1779,6 +1803,7 @@ function restoreSettingsDefaults(): void {
   restoreSessionInput.checked = fallbackConfig.workspace.restoreLastSession;
   shellContextMenuInput.checked = fallbackConfig.shell.contextMenu;
   shellOpenWithInput.checked = fallbackConfig.shell.openWith;
+  runnersInput.value = "";
   requestTheme("light");
 }
 
@@ -1805,6 +1830,32 @@ async function saveSettings(): Promise<void> {
   if (!Number.isInteger(maxSize) || maxSize < 1) {
     showToast("文本大小上限必须是大于等于 1 的整数 MB。", true);
     return;
+  }
+  const runnersText = runnersInput.value.trim();
+  let runners: AppConfig["runners"];
+  if (!runnersText) {
+    runners = [];
+  } else {
+    try {
+      const parsed = JSON.parse(runnersText);
+      if (!Array.isArray(parsed)) throw new Error("运行器配置必须是 JSON 数组。");
+      runners = parsed.map((item, index) => {
+        if (typeof item?.name !== "string" || !Array.isArray(item.extensions) || typeof item.command !== "string") {
+          throw new Error(`第 ${index + 1} 个运行器缺少 name/extensions/command 字段。`);
+        }
+        const shell = item.shell === "cmd" ? "cmd" : "powershell";
+        return {
+          name: item.name,
+          extensions: item.extensions.map((extension: unknown) => String(extension).toLowerCase()),
+          shell,
+          command: item.command,
+          args: Array.isArray(item.args) ? item.args.map((arg: unknown) => String(arg)) : [],
+        } as AppConfig["runners"][number];
+      });
+    } catch (error) {
+      showToast(`运行器配置无效：${failureMessage(error)}`, true);
+      return;
+    }
   }
   if (!hasTauriRuntime()) {
     showToast("浏览器预览不能写入配置，请使用 QuickEdit 桌面运行。", true);
@@ -1836,6 +1887,7 @@ async function saveSettings(): Promise<void> {
       ...config.appearance,
       theme: "light",
     },
+    runners,
   };
   settingsSaveButton.disabled = true;
   try {
@@ -2251,6 +2303,7 @@ function bindEvents(): void {
   markdownPreviewButton.addEventListener("click", () => { setMarkdownViewMode("preview"); updateAnnotationBubble(); });
   toastCloseButton.addEventListener("click", hideToast);
   notesButton.addEventListener("click", toggleNotes);
+  docRunButton.addEventListener("click", () => void runActiveDocument());
   closeNotesButton.addEventListener("click", () => {
     workareaElement.classList.remove("notes-open");
     notesPanelElement.classList.add("hidden");

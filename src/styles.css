@@ -274,6 +274,9 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 :root[data-theme="dark"] .csv-viewport, :root[data-theme="dark"] .html-preview-pane { background: #20242d; }
 :root[data-theme="dark"] .csv-cell { color: var(--text); border-right-color: #2b3140; }
 :root[data-theme="dark"] .csv-head, :root[data-theme="dark"] .csv-row-number { background: #262b35; }
+.header-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.header-run { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #dfe3ff; border-radius: 8px; color: #4d5bd2; background: #fff; font-size: 12px; cursor: pointer; }
+.header-run:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
 :root[data-theme="dark"] .image-btn { color: var(--text); border-color: var(--line); background: #292e38; }
 :root[data-theme="dark"] .image-stage { background: repeating-conic-gradient(#20242d 0% 25%, #262b35 0% 50%) 50% / 22px 22px; }
 .statusbar { height: 32px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 14px; border-top: 1px solid var(--line); color: var(--muted); background: #fbfcfe; font-size: 10px; }

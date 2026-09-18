@@ -34,6 +34,7 @@ export interface TerminalFeature {
   fit(): void;
   openFor(target: TreeNode | null): Promise<void>;
   toggle(force?: boolean): Promise<void>;
+  runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string): Promise<void>;
   handleOutput(payload: TerminalOutputEvent): void;
   handleExit(payload: TerminalExitEvent): void;
 }
@@ -280,6 +281,33 @@ export function createTerminalFeature(deps: TerminalFeatureDeps): TerminalFeatur
     session.terminal.focus();
   }
 
+  // §3.4/§12: only ever invoked from an explicit user click. Opens (or reuses) a
+  // terminal at the target's directory and types the run command + Enter.
+  async function runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string): Promise<void> {
+    try {
+      const context = await deps.contextFor(target);
+      let session = sessions.find((item) => item.scopeKey === context.scopeKey);
+      if (!session) {
+        session = createSession(context);
+      }
+      session.shell = shell;
+      activate(session.id);
+      if (!session.running && !session.spawning) {
+        await spawn(session);
+      }
+      const target2 = session;
+      const write = (): void => {
+        const processId = target2.processId;
+        if (!processId) return;
+        void invoke("terminal_write", { sessionId: processId, data: `${command}\r` }).catch((error) => showToast(failureMessage(error), true));
+      };
+      if (target2.running) write();
+      else window.setTimeout(write, 400);
+    } catch (error) {
+      showToast(failureMessage(error), true);
+    }
+  }
+
   function bindResizeDrag(): void {
     let startY = 0;
     let startHeight = 0;
@@ -340,5 +368,5 @@ export function createTerminalFeature(deps: TerminalFeatureDeps): TerminalFeatur
     renderList();
   }
 
-  return { bindEvents, fit, openFor, toggle, handleOutput, handleExit };
+  return { bindEvents, fit, openFor, toggle, runCommand, handleOutput, handleExit };
 }

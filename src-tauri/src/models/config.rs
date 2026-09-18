@@ -33,7 +33,7 @@ impl Default for TextHandlerConfig {
             enabled: true,
             extensions: vec![
                 ".txt", ".md", ".json", ".xml", ".yaml", ".yml", ".ini", ".log", ".csv", ".sql",
-                ".py", ".js", ".ts", ".cs", ".java", ".cpp", ".html", ".css",
+                ".py", ".js", ".ts", ".cs", ".java", ".cpp", ".html", ".css", ".bat", ".cmd", ".ps1",
             ]
             .into_iter()
             .map(String::from)
@@ -171,6 +171,28 @@ impl Default for ShellConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase", default)]
+pub struct RunnerConfig {
+    pub name: String,
+    pub extensions: Vec<String>,
+    pub shell: String,
+    pub command: String,
+    pub args: Vec<String>,
+}
+
+impl Default for RunnerConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            extensions: Vec::new(),
+            shell: "powershell".to_string(),
+            command: String::new(),
+            args: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppConfig {
     pub version: u8,
     pub editor: EditorConfig,
@@ -179,6 +201,7 @@ pub struct AppConfig {
     pub workspace: WorkspaceConfig,
     pub shell: ShellConfig,
     pub appearance: AppearanceConfig,
+    pub runners: Vec<RunnerConfig>,
 }
 
 impl Default for AppConfig {
@@ -191,6 +214,7 @@ impl Default for AppConfig {
             workspace: WorkspaceConfig::default(),
             shell: ShellConfig::default(),
             appearance: AppearanceConfig::default(),
+            runners: Vec::new(),
         }
     }
 }

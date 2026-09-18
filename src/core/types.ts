@@ -45,6 +45,14 @@ export interface TextDocument {
   modifiedTime: number;
 }
 
+export interface RunnerConfig {
+  name: string;
+  extensions: string[];
+  shell: "powershell" | "cmd";
+  command: string;
+  args?: string[];
+}
+
 export interface AppConfig {
   version: number;
   editor: {
@@ -71,6 +79,7 @@ export interface AppConfig {
   appearance: {
     theme: ThemeMode;
   };
+  runners: RunnerConfig[];
 }
 
 export interface WorkspaceReference {
@@ -154,7 +163,7 @@ export const fallbackConfig: AppConfig = {
       enabled: true,
       extensions: [
         ".txt", ".md", ".json", ".xml", ".yaml", ".yml", ".ini", ".log", ".csv",
-        ".sql", ".py", ".js", ".ts", ".cs", ".java", ".cpp", ".html", ".css",
+        ".sql", ".py", ".js", ".ts", ".cs", ".java", ".cpp", ".html", ".css", ".bat", ".cmd", ".ps1",
       ],
     },
     spreadsheet: { enabled: true, extensions: [".xlsx"] },
@@ -165,4 +174,5 @@ export const fallbackConfig: AppConfig = {
   workspace: { restoreLastSession: true },
   shell: { contextMenu: true, openWith: true },
   appearance: { theme: "light" },
+  runners: [],
 };
