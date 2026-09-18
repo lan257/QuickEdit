@@ -139,6 +139,14 @@ pub struct AnnotationEntry {
     pub scope: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locator: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     pub text: String,
     pub created_at: String,
     pub updated_at: String,
@@ -150,6 +158,10 @@ impl Default for AnnotationEntry {
             id: String::new(),
             scope: "general".to_string(),
             locator: None,
+            anchor: None,
+            status: None,
+            tags: None,
+            source: None,
             text: String::new(),
             created_at: String::new(),
             updated_at: String::new(),
@@ -1353,9 +1365,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let paths: Vec<String> = args.into_iter().skip(1).filter(|item| !item.is_empty()).collect();
-            if !paths.is_empty() {
-                use tauri::Emitter;
-                let _ = app.emit("open-paths", paths);
+            use tauri::Emitter;
+            let _ = app.emit("open-paths", paths);
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
             }
         }))
         .plugin(tauri_plugin_opener::init())

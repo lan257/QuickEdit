@@ -10,13 +10,38 @@ import MarkdownIt from "markdown-it";
 import configHelpMarkdown from "./QuickEdit_Config_Help.md?raw";
 import type * as XLSX from "xlsx";
 import type * as PdfJs from "pdfjs-dist";
+import { TextEditor } from "./editor/text-editor";
+import {
+  annotationDamaged,
+  annotationDocument,
+  annotationPath,
+  annotationStale,
+  createAnnotation,
+  loadAnnotations as loadAnnotationDocument,
+  onAnnotationsChanged,
+  persistAnnotations,
+  recoverAnnotations as recoverAnnotationDocument,
+  removeAnnotation,
+  resolvedAnnotations,
+  resolutionSummary,
+  resetAnnotations,
+  setActiveSourcePath,
+  setAnnotationStatus,
+  syncAfterSave,
+  updateAnnotationText,
+  type CreateAnnotationInput,
+} from "./annotations/annotation-service";
+import { buildAnchor, resolveTextAnchor } from "./annotations/text-anchor";
+import { annotationExtensions, currentMarkerRanges, dispatchActiveMarker, dispatchMarkers } from "./annotations/renderers/text-renderer";
+import { highlightPreviewAnnotations, mapRenderedQuoteToSource } from "./annotations/renderers/preview-highlight";
+import { AnnotationComposer, type ComposerContext } from "./annotations/ui/annotation-composer";
+import { renderAnnotationPanel } from "./annotations/ui/annotation-panel";
+import type { AnnotationEntry, ResolvedAnnotation, TextRange } from "./annotations/types";
 
 type NodeKind = "docs" | "workspace" | "folder" | "file";
 type HandlerKind = "text" | "xlsx" | "pdf" | "docx" | "future";
 type MarkdownViewMode = "edit" | "preview";
 type TreeSortMode = "files-first" | "folders-first" | "name-desc" | "modified-desc";
-type AnnotationScope = "general" | "selection" | "page" | "cell";
-type AnnotationLocator = { start: number; end: number; quote: string; preview?: boolean } | { page: number } | { sheet: string; cell: string };
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[character] || character));
@@ -64,35 +89,6 @@ interface TextDocument {
   encoding: string;
   size: number;
   modifiedTime: number;
-}
-
-interface AnnotationTarget {
-  name: string;
-  size: number;
-  modifiedTime: number;
-}
-
-interface AnnotationEntry {
-  id: string;
-  scope: AnnotationScope | string;
-  locator?: AnnotationLocator | null;
-  text: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface AnnotationDocument {
-  version: number;
-  target: AnnotationTarget;
-  updatedAt: string;
-  annotations: AnnotationEntry[];
-}
-
-interface AnnotationState {
-  path: string;
-  exists: boolean;
-  stale?: boolean;
-  document: AnnotationDocument;
 }
 
 type ThemeMode = "light" | "dark";
@@ -282,7 +278,9 @@ const docxContentElement = $("#docxContent");
 const unsupportedViewElement = $("#unsupportedView");
 const unsupportedTitleElement = $("#unsupportedTitle");
 const unsupportedMessageElement = $("#unsupportedMessage");
-const textEditorElement = $("#textEditor") as HTMLTextAreaElement;
+const textEditorHostElement = $("#textEditorHost");
+const contentElement = $<HTMLElement>(".content");
+const annotationBubbleElement = $("#annotationBubble") as HTMLButtonElement;
 const markdownModeBarElement = $("#markdownModeBar");
 const markdownPreviewPaneElement = $("#markdownPreviewPane");
 const markdownPreviewElement = $("#markdownPreview");
@@ -314,14 +312,15 @@ const workareaElement = $("#workarea");
 const notesPanelElement = $("#notesPanel");
 const noteFileLabelElement = $("#noteFileLabel");
 const notesListElement = $("#notesList");
-const noteInputElement = $("#noteInput") as HTMLTextAreaElement;
-const noteScopeElement = $("#noteScope") as HTMLSelectElement;
-const noteContextHintElement = $("#noteContextHint");
+const notePanelCountElement = $("#notePanelCount");
+const addGeneralNoteButton = $("#addGeneralNoteButton") as HTMLButtonElement;
+const noteFilterAllButton = $("#noteFilterAllButton") as HTMLButtonElement;
+const noteFilterOpenButton = $("#noteFilterOpenButton") as HTMLButtonElement;
+const noteTagFilterClearButton = $("#noteTagFilterClearButton") as HTMLButtonElement;
 const recoverNotesButton = $("#recoverNotesButton") as HTMLButtonElement;
 const treeSearchInput = $("#treeSearchInput") as HTMLInputElement;
 const treeSortSelect = $("#treeSortSelect") as HTMLSelectElement;
 const closeNotesButton = $("#closeNotesButton") as HTMLButtonElement;
-const addNoteButton = $("#addNoteButton") as HTMLButtonElement;
 const logoButton = $("#logoButton") as HTMLButtonElement;
 const menuElement = $("#menu");
 const nameOverlayElement = $("#nameOverlay");
@@ -388,12 +387,13 @@ let markdownPreviewRevision = -1;
 let markdownPreviewHtml = "";
 let findMatches: Array<{ start: number; end: number }> = [];
 let findMatchIndex = -1;
-let activeAnnotations: AnnotationDocument | null = null;
-let activeAnnotationPath = "";
-let activeAnnotationStale = false;
+let activeAnnotationId: string | null = null;
+let annotationLoading = false;
+let notesFilter: "all" | "open" = "all";
+let notesTagFilter: string | null = null;
 let activeCellLocator: { sheet: string; cell: string } | null = null;
-let previewSelectionSnapshot: { quote: string; start: number; end: number } | null = null;
-let editSelectionSnapshot: { quote: string; start: number; end: number } | null = null;
+let textEditor: TextEditor | null = null;
+let composer: AnnotationComposer | null = null;
 let treeFilter = "";
 let treeSortMode: TreeSortMode = "files-first";
 let nameCallback: ((name: string) => void) | null = null;
@@ -533,13 +533,17 @@ function failureMessage(error: unknown): string {
   return commandFailure(error).message || "本地文件操作失败。";
 }
 
+let toastTimer = 0;
 function showToast(message: string, isError = false): void {
   toastMessageElement.textContent = message;
   toastElement.classList.toggle("error", isError);
   toastElement.classList.remove("hidden");
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(hideToast, 3000);
 }
 
 function hideToast(): void {
+  window.clearTimeout(toastTimer);
   toastElement.classList.add("hidden");
 }
 
@@ -728,12 +732,10 @@ function selectContainer(node: TreeNode): void {
   pdfPageHosts.clear();
   pdfPageRendering.clear();
   activePdfPage = 1;
-  activeAnnotations = null;
-  activeAnnotationPath = "";
-  activeAnnotationStale = false;
+  resetAnnotations();
+  activeAnnotationId = null;
+  notesTagFilter = null;
   activeCellLocator = null;
-  previewSelectionSnapshot = null;
-  editSelectionSnapshot = null;
   closeNotesPanel();
   showView("folder");
   renderFolderInfo(node);
@@ -864,8 +866,8 @@ function updateHeader(): void {
     notesButton.disabled = true;
     notesButton.classList.add("hidden");
     noteCountElement.textContent = "0";
+    notePanelCountElement.textContent = "0";
     updateMarkdownControls();
-    updateAnnotationScopeOptions();
     statusModeElement.textContent = "—";
     statusInfoElement.textContent = "";
     statusPathElement.textContent = "";
@@ -883,13 +885,13 @@ function updateHeader(): void {
     notesButton.disabled = true;
     notesButton.classList.add("hidden");
     noteCountElement.textContent = "0";
+    notePanelCountElement.textContent = "0";
     statusModeElement.textContent = "文件夹信息";
     statusInfoElement.textContent = activeNode.childrenLoaded ? `${countFiles(activeNode)} 个文件` : "目录未展开";
     statusPathElement.textContent = formatModifiedTime(activeNode.modifiedTime);
     statusPathElement.title = activeNode.path;
     renderFolderInfo(activeNode);
     updateMarkdownControls();
-    updateAnnotationScopeOptions();
     updateCursorStatus();
     return;
   }
@@ -905,11 +907,12 @@ function updateHeader(): void {
   notesButton.disabled = !config.annotations.enabled;
   notesButton.classList.remove("hidden");
   updateMarkdownControls();
-  updateAnnotationScopeOptions();
   statusPathElement.textContent = formatModifiedTime(activeNode.modifiedTime);
   statusPathElement.title = activeNode.path;
   updateCursorStatus();
-  noteCountElement.textContent = String(activeAnnotations?.annotations.length || 0);
+  const annotationTotal = annotationDocument()?.annotations.length || 0;
+  noteCountElement.textContent = String(annotationTotal);
+  notePanelCountElement.textContent = String(annotationTotal);
 }
 
 function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx" | "unsupported"): void {
@@ -938,12 +941,16 @@ function updateMarkdownControls(): void {
 
 function renderMarkdownPreview(): void {
   if (!isMarkdownNode(activeNode)) return;
-  const source = activeNode?.content ?? textEditorElement.value;
+  const source = activeNode?.content;
+  // 正文尚未加载（openNode 早期通知会打到这里）时直接跳过，
+  // 否则会把空内容写进 revision 缓存，导致首次打开永远空白。
+  if (source === undefined) return;
   if (markdownPreviewRevision !== markdownContentRevision) {
     markdownPreviewHtml = markdownRenderer.render(source);
     markdownPreviewRevision = markdownContentRevision;
   }
   markdownPreviewElement.innerHTML = markdownPreviewHtml;
+  highlightPreviewAnnotations(markdownPreviewElement, annotationsForPanel());
 }
 
 function setMarkdownViewMode(mode: MarkdownViewMode): void {
@@ -963,142 +970,324 @@ function setMarkdownViewMode(mode: MarkdownViewMode): void {
   }
 }
 
-function annotationScopeLabel(scope: string): string {
-  return { general: "全文", selection: "当前选区", page: "当前页", cell: "当前单元格" }[scope] || scope;
-}
-
-function annotationLocatorLabel(annotation: AnnotationEntry): string {
-  const locator = annotation.locator;
-  if (!locator) return annotation.scope === "general" ? "全文" : "未记录定位";
-  if (annotation.scope === "selection" && "start" in locator) {
-    const label = locator.preview ? "预览选区" : `选区 ${locator.start}-${locator.end}`;
-    return `${label}${locator.quote ? `：${locator.quote.slice(0, 48)}` : ""}`;
+function ensureEditor(): TextEditor {
+  if (!textEditor) {
+    textEditor = new TextEditor(
+      textEditorHostElement,
+      annotationExtensions({
+        onMarkerClick: (id) => activateAnnotation(id, { fromMarker: true }),
+        tooltipFor: (id) => {
+          const item = annotationsForPanel().find((annotation) => annotation.entry.id === id);
+          if (!item) return null;
+          return { title: item.entry.text, meta: annotationPositionLabel(item.entry, item.range) };
+        },
+      }),
+      {
+        onChange: () => {
+          hideAnnotationBubble();
+          markDirty();
+        },
+        onSelectionChange: () => {
+          scheduleAnnotationBubble();
+          updateCursorStatus();
+        },
+      }
+    );
   }
-  if (annotation.scope === "page" && "page" in locator) return `第 ${locator.page} 页`;
-  if (annotation.scope === "cell" && "sheet" in locator) return `${locator.sheet}!${locator.cell}`;
-  return "已记录定位";
+  return textEditor;
 }
 
-function previewSelectionQuote(): string {
+function ensureComposer(): AnnotationComposer {
+  if (!composer) composer = new AnnotationComposer(contentElement, { onSubmit: () => undefined });
+  return composer;
+}
+
+function closeComposer(): void {
+  if (composer?.open) composer.close();
+}
+
+function annotationPositionLabel(entry: AnnotationEntry, range?: TextRange): string {
+  if (entry.scope === "text-range") {
+    const target = range || (entry.locator && "start" in entry.locator ? entry.locator : null);
+    if (textEditor && target) {
+      const startLine = textEditor.lineOf(target.start);
+      const endLine = textEditor.lineOf(target.end);
+      return startLine === endLine ? `L${startLine}` : `L${startLine}–L${endLine}`;
+    }
+    return "文本选区";
+  }
+  if (entry.scope === "page" && entry.locator && "page" in entry.locator) return `第 ${entry.locator.page} 页`;
+  if (entry.scope === "cell" && entry.locator && "sheet" in entry.locator) return `${entry.locator.sheet}!${entry.locator.cell}`;
+  if (entry.scope === "general") return "全文";
+  return "批注";
+}
+
+function annotationsForPanel(): ResolvedAnnotation[] {
+  const runtime = textEditor ? currentMarkerRanges(textEditor.view) : null;
+  return resolvedAnnotations().map((item) => {
+    if (item.entry.scope === "text-range" && item.resolution === "resolved" && runtime) {
+      const range = runtime.get(item.entry.id);
+      if (range) return { ...item, range };
+    }
+    return item;
+  });
+}
+
+function syncAnnotationMarkers(): void {
+  if (!textEditor) return;
+  const items = annotationsForPanel()
+    .filter((item) => item.entry.scope === "text-range" && item.resolution === "resolved" && item.range && item.range.end > item.range.start)
+    .map((item) => ({ id: item.entry.id, range: item.range as TextRange }));
+  dispatchMarkers(textEditor.view, items);
+  dispatchActiveMarker(textEditor.view, activeAnnotationId);
+}
+
+function renderAnnotationUi(): void {
+  const hasDocument = Boolean(annotationDocument());
+  const annotations = annotationsForPanel();
+  noteCountElement.textContent = String(annotations.length);
+  notePanelCountElement.textContent = String(annotations.length);
+  if (activeNode?.kind === "file") {
+    noteFileLabelElement.textContent = `${activeNode.name}${config.annotations.extension}`;
+    noteFileLabelElement.title = annotationPath();
+  } else {
+    noteFileLabelElement.textContent = "未选择文档";
+    noteFileLabelElement.removeAttribute("title");
+  }
+  addGeneralNoteButton.disabled = !hasDocument || !config.annotations.enabled;
+  noteFilterAllButton.classList.toggle("active", notesFilter === "all");
+  noteFilterOpenButton.classList.toggle("active", notesFilter === "open");
+  noteTagFilterClearButton.classList.toggle("hidden", !notesTagFilter);
+  if (notesTagFilter) noteTagFilterClearButton.textContent = `标签：${notesTagFilter} ✕`;
+  const filterActive = notesFilter === "open" || Boolean(notesTagFilter);
+  const visible = annotations.filter((item) => {
+    if (notesFilter === "open" && item.entry.status === "resolved") return false;
+    if (notesTagFilter && !(item.entry.tags || []).includes(notesTagFilter)) return false;
+    return true;
+  });
+  renderAnnotationPanel({
+    listElement: notesListElement,
+    annotations: visible,
+    hasDocument,
+    loading: annotationLoading,
+    staleSummary: annotationStale() && hasDocument && annotations.length > 0 ? resolutionSummary() : null,
+    activeId: activeAnnotationId,
+    activeTagFilter: notesTagFilter,
+    filterActive,
+    positionLabel: annotationPositionLabel,
+    callbacks: {
+      onActivate: (id) => activateAnnotation(id),
+      onEdit: (id) => openEditComposer(id),
+      onDelete: (id) => void deleteAnnotation(id),
+      onToggleStatus: (id) => void toggleAnnotationStatus(id),
+      onToggleTagFilter: (tag) => { notesTagFilter = notesTagFilter === tag ? null : tag; renderAnnotationUi(); },
+    },
+  });
+  syncAnnotationMarkers();
+  updateAnnotationBubble();
+}
+
+function selectionTextRange(): TextRange | null {
+  if (!textEditor || markdownViewMode === "preview") return null;
+  const range = textEditor.selectionRange();
+  return range.start === range.end ? null : range;
+}
+
+function previewQuote(): string {
   if (!isMarkdownNode(activeNode) || markdownViewMode !== "preview") return "";
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || !selection.anchorNode || !markdownPreviewElement.contains(selection.anchorNode)) return "";
   return selection.toString().trim().slice(0, 240);
 }
 
-function capturePreviewSelection(): void {
-  const quote = previewSelectionQuote();
-  if (!quote) return;
-  const source = activeNode?.content ?? textEditorElement.value;
-  const start = source.indexOf(quote);
-  previewSelectionSnapshot = { quote, start, end: start < 0 ? -1 : start + quote.length };
-}
-
-function captureEditSelection(): void {
-  if (!activeNode || activeNode.kind !== "file" || getHandlerKind(activeNode) !== "text") return;
-  if (markdownViewMode === "preview") return;
-  const start = Math.min(textEditorElement.selectionStart, textEditorElement.selectionEnd);
-  const end = Math.max(textEditorElement.selectionStart, textEditorElement.selectionEnd);
-  if (start === end) return;
-  editSelectionSnapshot = { quote: textEditorElement.value.slice(start, end).slice(0, 240), start, end };
-}
-
-function selectPreviewQuote(quote: string): void {
-  if (!quote) return;
-  const walker = document.createTreeWalker(markdownPreviewElement, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    const value = node.nodeValue || "";
-    const start = value.indexOf(quote);
-    if (start < 0) continue;
-    const range = document.createRange();
-    range.setStart(node, start);
-    range.setEnd(node, start + quote.length);
+function anchorRectForBubble(): DOMRect | null {
+  if (markdownViewMode === "preview") {
     const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
+    if (!selection || selection.rangeCount === 0) return null;
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    return rect.width || rect.height ? rect : null;
+  }
+  if (!textEditor) return null;
+  const coords = textEditor.coordsAt(textEditor.selectionRange().end);
+  if (!coords) return null;
+  return new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top);
+}
+
+let bubbleFrame = 0;
+function scheduleAnnotationBubble(): void {
+  if (bubbleFrame) return;
+  bubbleFrame = window.requestAnimationFrame(() => {
+    bubbleFrame = 0;
+    updateAnnotationBubble();
+  });
+}
+
+function updateAnnotationBubble(): void {
+  const isTextNode = Boolean(activeNode?.kind === "file" && getHandlerKind(activeNode) === "text" && textEditor);
+  const hasSelection = isTextNode && Boolean(selectionTextRange() || previewQuote());
+  const rect = hasSelection ? anchorRectForBubble() : null;
+  if (!isTextNode || !hasSelection || !rect || !annotationDocument() || !config.annotations.enabled || composer?.open) {
+    hideAnnotationBubble();
     return;
   }
+  const hostRect = contentElement.getBoundingClientRect();
+  annotationBubbleElement.style.left = `${Math.max(8, Math.min(rect.left - hostRect.left, hostRect.width - 96))}px`;
+  annotationBubbleElement.style.top = `${Math.max(8, Math.min(rect.bottom - hostRect.top + 8, hostRect.height - 40))}px`;
+  annotationBubbleElement.classList.remove("hidden");
 }
 
-function currentAnnotationContext(): { scope: AnnotationScope; locator: AnnotationLocator | null; hint: string } | null {
-  if (!activeNode || activeNode.kind !== "file") return null;
-  const scope = noteScopeElement.value as AnnotationScope;
-  if (scope === "general") return { scope, locator: null, hint: "当前批注关联全文。" };
-  if (scope === "selection") {
-    if (getHandlerKind(activeNode) !== "text") return null;
-    if (markdownViewMode === "preview") {
-      const liveQuote = previewSelectionQuote();
-      const effective = liveQuote ? { quote: liveQuote, start: -1 } : previewSelectionSnapshot;
-      if (!effective || !effective.quote) return null;
-      const source = activeNode.content ?? textEditorElement.value;
-      const start = effective.start >= 0 ? effective.start : source.indexOf(effective.quote);
-      const end = start < 0 ? -1 : start + effective.quote.length;
-      const prefix = liveQuote ? "当前批注关联预览选区：" : "已记住的预览选区：";
-      return { scope, locator: { start, end, quote: effective.quote, preview: true }, hint: `${prefix}${effective.quote.slice(0, 48)}` };
-    }
-    if (!activeSession) return null;
-    const start = Math.min(textEditorElement.selectionStart, textEditorElement.selectionEnd);
-    const end = Math.max(textEditorElement.selectionStart, textEditorElement.selectionEnd);
-    if (start !== end) {
-      const quote = textEditorElement.value.slice(start, end).slice(0, 240);
-      return { scope, locator: { start, end, quote }, hint: `当前批注关联选区：${quote.slice(0, 48)}` };
-    }
-    const snapshot = editSelectionSnapshot;
-    if (!snapshot || !snapshot.quote) return null;
-    return { scope, locator: { start: snapshot.start, end: snapshot.end, quote: snapshot.quote }, hint: `已记住的选区：${snapshot.quote.slice(0, 48)}` };
-  }
-  if (scope === "page") {
-    if (getHandlerKind(activeNode) !== "pdf" || !activePdfDocument) return null;
-    return { scope, locator: { page: activePdfPage }, hint: `当前批注关联第 ${activePdfPage} 页。` };
-  }
-  if (scope === "cell") {
-    if (getHandlerKind(activeNode) !== "xlsx" || !activeCellLocator) return null;
-    return { scope, locator: activeCellLocator, hint: `当前批注关联 ${activeCellLocator.sheet}!${activeCellLocator.cell}。` };
-  }
-  return null;
+function hideAnnotationBubble(): void {
+  annotationBubbleElement.classList.add("hidden");
 }
 
-function updateAnnotationScopeOptions(): void {
-  const handler = activeNode?.kind === "file" ? getHandlerKind(activeNode) : "future";
-  const hasSelection = handler === "text" && (textEditorElement.selectionStart !== textEditorElement.selectionEnd || Boolean(previewSelectionQuote()) || (markdownViewMode === "preview" && Boolean(previewSelectionSnapshot?.quote)) || Boolean(editSelectionSnapshot?.quote));
-  const available: Record<AnnotationScope, boolean> = {
-    general: activeNode?.kind === "file",
-    selection: handler === "text",
-    page: handler === "pdf",
-    cell: handler === "xlsx",
+async function commitAnnotationChange(mutate: () => void | Promise<unknown>): Promise<boolean> {
+  await mutate();
+  try {
+    return await persistAnnotations();
+  } catch (error) {
+    renderAnnotationUi();
+    showToast(failureMessage(error), true);
+    return false;
+  }
+}
+
+function annotationSubmit(scope: CreateAnnotationInput["scope"], locator: CreateAnnotationInput["locator"], anchor: CreateAnnotationInput["anchor"]): (text: string, tags: string[]) => Promise<void> {
+  return async (text: string, tags: string[]) => {
+    const persisted = await commitAnnotationChange(() => createAnnotation({ scope, locator, anchor, text, tags }));
+    if (persisted) showToast(`已写入 ${activeNode?.name || ""}${config.annotations.extension}`);
   };
-  for (const option of Array.from(noteScopeElement.options)) {
-    const scope = option.value as AnnotationScope;
-    option.hidden = !available[scope];
-    option.disabled = scope === "selection" ? !hasSelection : scope === "cell" ? !activeCellLocator : false;
-  }
-  const selected = noteScopeElement.value as AnnotationScope;
-  if (!available[selected] || (selected === "selection" && !hasSelection) || (selected === "cell" && !activeCellLocator)) {
-    noteScopeElement.value = "general";
-  }
-  const context = currentAnnotationContext();
-  noteContextHintElement.textContent = activeAnnotationStale
-    ? "批注可能对应旧版本文件，请确认定位后再添加。"
-    : context?.hint || "先选择有效的批注范围。";
-  addNoteButton.disabled = !context || !activeAnnotations || !config.annotations.enabled;
 }
 
-function focusAnnotation(annotation: AnnotationEntry): void {
-  const locator = annotation.locator;
-  if (!activeNode || !locator) return;
-  if (annotation.scope === "selection" && "start" in locator && getHandlerKind(activeNode) === "text") {
-    if (locator.preview && isMarkdownNode(activeNode) && markdownViewMode === "preview") {
-      selectPreviewQuote(locator.quote);
+function openComposerForContext(context: ComposerContext, submit: (text: string, tags: string[]) => void | Promise<void>, at?: { x: number; y: number }): void {
+  const instance = ensureComposer();
+  instance.setOptions({
+    onSubmit: async (text, tags) => {
+      await submit(text, tags);
+      instance.close();
+    },
+  });
+  instance.openAt(context, at);
+}
+
+function openTextSelectionComposer(): void {
+  const range = selectionTextRange();
+  if (!range || !textEditor) return;
+  const source = textEditor.getText();
+  const quote = source.slice(range.start, range.end).slice(0, 240);
+  const anchor = buildAnchor(source, range);
+  const entryStub: AnnotationEntry = { id: "", scope: "text-range", locator: range, text: "", createdAt: "", updatedAt: "" };
+  const rect = anchorRectForBubble();
+  openComposerForContext(
+    { quote, scopeHint: `文本选区 · ${annotationPositionLabel(entryStub, range)}` },
+    annotationSubmit("text-range", { start: range.start, end: range.end }, anchor),
+    rect ? { x: rect.left, y: rect.bottom } : undefined
+  );
+  hideAnnotationBubble();
+}
+
+function openPreviewSelectionComposer(): void {
+  const quote = previewQuote();
+  if (!quote) return;
+  const source = textEditor ? textEditor.getText() : activeNode?.content || "";
+  const outcome = resolveTextAnchor(source, null, { quote, prefix: "", suffix: "" });
+  let range: TextRange | null = outcome.resolution === "resolved" ? outcome.range || null : null;
+  if (!range) range = mapRenderedQuoteToSource(source, quote);
+  if (!range) {
+    showToast("预览选区无法唯一定位到源码；请切换到编辑模式选择范围后添加批注。", true);
+    return;
+  }
+  const anchor = buildAnchor(source, range);
+  openComposerForContext({ quote, scopeHint: "预览选区（已定位到源码）" }, annotationSubmit("text-range", range, anchor));
+  hideAnnotationBubble();
+}
+
+function openContextComposer(at?: { x: number; y: number }): void {
+  if (!activeNode || activeNode.kind !== "file" || !annotationDocument()) return;
+  const handler = getHandlerKind(activeNode);
+  if (handler === "text") {
+    if (markdownViewMode === "preview" && previewQuote()) {
+      openPreviewSelectionComposer();
       return;
     }
-    if (isMarkdownNode(activeNode) && markdownViewMode !== "edit") setMarkdownViewMode("edit");
-    textEditorElement.focus();
-    textEditorElement.setSelectionRange(locator.start, locator.end);
-    updateAnnotationScopeOptions();
+    if (selectionTextRange()) {
+      openTextSelectionComposer();
+      return;
+    }
+  }
+  if (handler === "xlsx" && activeCellLocator) {
+    openComposerForContext({ scopeHint: `单元格 ${activeCellLocator.sheet}!${activeCellLocator.cell}` }, annotationSubmit("cell", { ...activeCellLocator }, null), at);
     return;
   }
-  if (annotation.scope === "page" && "page" in locator && activePdfDocument) {
+  if (handler === "pdf" && activePdfDocument) {
+    openComposerForContext({ scopeHint: `第 ${activePdfPage} 页` }, annotationSubmit("page", { page: activePdfPage }, null), at);
+    return;
+  }
+  openComposerForContext({ scopeHint: "文件级批注（关联全文）" }, annotationSubmit("general", null, null), at);
+}
+
+function openEditComposer(id: string): void {
+  const item = annotationsForPanel().find((annotation) => annotation.entry.id === id);
+  if (!item) return;
+  const instance = ensureComposer();
+  instance.setOptions({
+    onSubmit: async (text, tags) => {
+      const persisted = await commitAnnotationChange(() => updateAnnotationText(id, text, tags));
+      if (persisted) showToast("已更新批注");
+      instance.close();
+    },
+  });
+  instance.openAt({ quote: item.entry.anchor?.quote, scopeHint: `编辑批注 · ${annotationPositionLabel(item.entry, item.range)}`, tags: item.entry.tags, text: item.entry.text });
+}
+
+async function toggleAnnotationStatus(id: string): Promise<void> {
+  const item = annotationsForPanel().find((annotation) => annotation.entry.id === id);
+  if (!item) return;
+  const next = item.entry.status === "resolved" ? "open" : "resolved";
+  const persisted = await commitAnnotationChange(() => setAnnotationStatus(id, next));
+  if (persisted) showToast(next === "resolved" ? "已标记为解决" : "已重新打开");
+}
+
+async function deleteAnnotation(id: string): Promise<void> {
+  if (!window.confirm("删除这条批注？")) return;
+  if (activeAnnotationId === id) activeAnnotationId = null;
+  const persisted = await commitAnnotationChange(() => removeAnnotation(id));
+  if (persisted) showToast("已删除批注");
+}
+
+function cellAnnotations(sheet: string, cell: string): ResolvedAnnotation[] {
+  return resolvedAnnotations().filter((item) => {
+    const locator = item.entry.locator;
+    return item.entry.scope === "cell" && Boolean(locator && "sheet" in locator && locator.sheet === sheet && locator.cell === cell);
+  });
+}
+
+function pageAnnotations(page: number): ResolvedAnnotation[] {
+  return resolvedAnnotations().filter((item) => {
+    const locator = item.entry.locator;
+    return item.entry.scope === "page" && Boolean(locator && "page" in locator && locator.page === page);
+  });
+}
+
+function focusAnnotationsFor(items: ResolvedAnnotation[]): void {
+  if (items.length === 0) return;
+  activateAnnotation(items[0].entry.id, { fromMarker: true });
+}
+
+function focusAnnotationTarget(item: ResolvedAnnotation): void {
+  const { entry, resolution, range } = item;
+  if (entry.scope === "text-range") {
+    if (!activeNode || getHandlerKind(activeNode) !== "text" || !textEditor) return;
+    if (isMarkdownNode(activeNode) && markdownViewMode !== "edit") setMarkdownViewMode("edit");
+    if (resolution !== "resolved" || !range || range.end <= range.start) {
+      showToast(resolution === "ambiguous" ? "有多处相似内容，定位不确定，请人工确认原文。" : "原位置已无法定位，批注内容仍会保留。", true);
+      return;
+    }
+    textEditor.selectRange(range);
+    return;
+  }
+  const locator = entry.locator;
+  if (!locator) return;
+  if (entry.scope === "page" && "page" in locator && activePdfDocument) {
     const page = Math.max(1, Math.min(locator.page, activePdfDocument.numPages));
     activePdfPage = page;
     updatePdfPageLabel();
@@ -1109,115 +1298,76 @@ function focusAnnotation(annotation: AnnotationEntry): void {
     }
     return;
   }
-  if (annotation.scope === "cell" && "sheet" in locator && activeWorkbook) {
-    activeSheetName = locator.sheet;
-    activeCellLocator = { sheet: locator.sheet, cell: locator.cell };
+  if (entry.scope === "cell" && "sheet" in locator && activeWorkbook) {
+    const cellLocator = { sheet: locator.sheet, cell: locator.cell };
+    activeSheetName = cellLocator.sheet;
+    activeCellLocator = cellLocator;
     renderWorkbook();
     window.setTimeout(() => {
-      const cell = document.querySelector(`[data-sheet="${CSS.escape(locator.sheet)}"][data-cell="${CSS.escape(locator.cell)}"]`) as HTMLElement | null;
+      const cell = document.querySelector(`[data-sheet="${CSS.escape(cellLocator.sheet)}"][data-cell="${CSS.escape(cellLocator.cell)}"]`) as HTMLElement | null;
       cell?.scrollIntoView({ block: "center", inline: "center" });
       cell?.focus();
     }, 0);
-    return;
   }
 }
 
-function renderNotes(): void {
-  const annotations = activeAnnotations?.annotations || [];
-  noteCountElement.textContent = String(annotations.length);
-  noteFileLabelElement.textContent = activeAnnotationPath || (activeNode ? `${activeNode.name}${config.annotations.extension}` : "未选择文档");
-  notesListElement.innerHTML = "";
-  updateAnnotationScopeOptions();
-  if (activeAnnotationStale) {
-    const warning = document.createElement("div");
-    warning.className = "note-stale-warning";
-    warning.textContent = "原文件已变化，现有批注可能对应旧版本。";
-    notesListElement.append(warning);
+function activateAnnotation(id: string, options?: { fromMarker?: boolean }): void {
+  activeAnnotationId = id;
+  if (options?.fromMarker) {
+    workareaElement.classList.add("notes-open");
+    notesPanelElement.classList.remove("hidden");
   }
-  if (!activeNode || !activeAnnotations) {
-    const empty = document.createElement("div");
-    empty.className = "note-empty";
-    empty.textContent = activeNode ? "正在加载批注…" : "暂无批注";
-    notesListElement.append(empty);
-    return;
-  }
-  if (annotations.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "note-empty";
-    empty.textContent = "暂无批注";
-    notesListElement.append(empty);
-    return;
-  }
-  for (const annotation of annotations) {
-    const card = document.createElement("article");
-    card.className = "note-card note-card-interactive";
-    card.addEventListener("click", () => focusAnnotation(annotation));
-    const tag = document.createElement("span");
-    tag.className = "note-tag";
-    tag.textContent = annotationScopeLabel(annotation.scope);
-    const locator = document.createElement("div");
-    locator.className = "note-locator";
-    locator.textContent = annotationLocatorLabel(annotation);
-    const text = document.createElement("div");
-    text.className = "note-text";
-    text.textContent = annotation.text;
-    const time = document.createElement("div");
-    time.className = "note-time";
-    time.textContent = annotation.updatedAt || annotation.createdAt || "刚刚";
-    const actions = document.createElement("div");
-    actions.className = "note-actions";
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "note-edit";
-    edit.textContent = "编辑";
-    edit.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void editAnnotation(annotation.id);
-    });
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "note-remove";
-    remove.textContent = "删除";
-    remove.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (window.confirm("删除这条批注？")) void deleteAnnotation(annotation.id);
-    });
-    actions.append(edit, remove);
-    card.append(tag, locator, text, time, actions);
-    notesListElement.append(card);
-  }
+  const item = annotationsForPanel().find((annotation) => annotation.entry.id === id);
+  if (item) focusAnnotationTarget(item);
+  renderAnnotationUi();
 }
 
-async function editAnnotation(id: string): Promise<void> {
-  const annotation = activeAnnotations?.annotations.find((item) => item.id === id);
-  if (!annotation) return;
-  const text = window.prompt("编辑批注", annotation.text);
-  if (text === null) return;
-  const nextText = text.trim();
-  if (!nextText) {
-    showToast("批注内容不能为空。", true);
+function currentSourceForAnnotations(): string {
+  if (!activeNode || activeNode.kind !== "file" || getHandlerKind(activeNode) !== "text") return "";
+  return textEditor ? textEditor.getText() : activeNode.content || "";
+}
+
+async function loadAnnotationsForNode(node: TreeNode): Promise<void> {
+  activeAnnotationId = null;
+  annotationLoading = true;
+  recoverNotesButton.classList.add("hidden");
+  renderAnnotationUi();
+  if (!config.annotations.enabled || !hasTauriRuntime()) {
+    annotationLoading = false;
+    renderAnnotationUi();
     return;
   }
-  annotation.text = nextText;
-  annotation.updatedAt = new Date().toISOString();
-  await persistAnnotations();
-}
-
-async function deleteAnnotation(id: string): Promise<void> {
-  if (!activeAnnotations) return;
-  activeAnnotations.annotations = activeAnnotations.annotations.filter((annotation) => annotation.id !== id);
-  await persistAnnotations();
-}
-
-async function recoverAnnotations(): Promise<void> {
-  if (!activeNode || activeNode.kind !== "file") return;
+  setActiveSourcePath(node.path);
   try {
-    const state = await invoke<AnnotationState>("recover_annotations", { targetPath: activeNode.path });
-    activeAnnotations = state.document;
-    activeAnnotationPath = state.path;
-    activeAnnotationStale = false;
+    await loadAnnotationDocument(node.path, currentSourceForAnnotations());
+  } catch (error) {
+    annotationLoading = false;
+    if (activeNode?.id !== node.id) return;
+    if (annotationDamaged()) recoverNotesButton.classList.remove("hidden");
+    renderAnnotationUi();
+    showToast(failureMessage(error), true);
+    return;
+  }
+  if (activeNode?.id !== node.id) return;
+  annotationLoading = false;
+  renderAnnotationUi();
+  updateHeader();
+  if (annotationStale()) {
+    const summary = resolutionSummary();
+    const parts = [`原文件已变化：✓ ${summary.relocated} 条已重新定位`];
+    if (summary.ambiguous > 0) parts.push(`⚠ ${summary.ambiguous} 条定位不确定`);
+    if (summary.orphaned > 0) parts.push(`⚠ ${summary.orphaned} 条无法定位`);
+    showToast(parts.join(" · "));
+  }
+}
+
+async function recoverNotes(): Promise<void> {
+  if (!activeNode || activeNode.kind !== "file" || !hasTauriRuntime()) return;
+  try {
+    setActiveSourcePath(activeNode.path);
+    await recoverAnnotationDocument(activeNode.path);
     recoverNotesButton.classList.add("hidden");
-    renderNotes();
+    renderAnnotationUi();
     updateHeader();
     showToast("损坏 qnote 已备份，并已创建新的批注文件。");
   } catch (error) {
@@ -1225,84 +1375,10 @@ async function recoverAnnotations(): Promise<void> {
   }
 }
 
-async function loadAnnotations(node: TreeNode): Promise<void> {
-  activeAnnotations = null;
-  activeAnnotationPath = "";
-  activeAnnotationStale = false;
-  recoverNotesButton.classList.add("hidden");
-  renderNotes();
-  if (!config.annotations.enabled) return;
-  try {
-    const state = await invoke<AnnotationState>("load_annotations", { targetPath: node.path });
-    if (activeNode?.id !== node.id) return;
-    activeAnnotations = state.document;
-    activeAnnotationPath = state.path;
-    activeAnnotationStale = Boolean(state.stale);
-    renderNotes();
-    updateHeader();
-    if (activeAnnotationStale) showToast("批注可能对应旧版本文件，请核对定位。", true);
-  } catch (error) {
-    if (activeNode?.id !== node.id) return;
-    const failure = commandFailure(error);
-    renderNotes();
-    if (failure.code === "QNOTE_INVALID") {
-      recoverNotesButton.classList.remove("hidden");
-      noteContextHintElement.textContent = "批注文件损坏，原文件已保留；可备份后新建。";
-    }
-    showToast(failureMessage(error), true);
-  }
-}
-
-async function persistAnnotations(): Promise<boolean> {
-  if (!activeNode || !activeAnnotations || !config.annotations.enabled) return false;
-  try {
-    const state = await invoke<AnnotationState>("save_annotations", {
-      targetPath: activeNode.path,
-      document: activeAnnotations,
-    });
-    activeAnnotations = state.document;
-    activeAnnotationPath = state.path;
-    activeAnnotationStale = false;
-    renderNotes();
-    updateHeader();
-    return true;
-  } catch (error) {
-    showToast(failureMessage(error), true);
-    return false;
-  }
-}
-
-async function addAnnotation(): Promise<void> {
-  if (!activeAnnotations || !activeNode) return;
-  const context = currentAnnotationContext();
-  if (!context) {
-    showToast("当前批注范围没有有效定位，请先选择文本、页码或单元格。", true);
-    return;
-  }
-  const text = noteInputElement.value.trim();
-  if (!text) {
-    showToast("批注内容不能为空。", true);
-    return;
-  }
-  const now = new Date().toISOString();
-  const id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `note-${Date.now()}`;
-  activeAnnotations.annotations.push({
-    id,
-    scope: context.scope,
-    locator: context.locator,
-    text,
-    createdAt: now,
-    updatedAt: now,
-  });
-  if (await persistAnnotations()) {
-    noteInputElement.value = "";
-    showToast(`已写入 ${activeNode.name}${config.annotations.extension}`);
-  }
-}
-
 function toggleNotes(): void {
   if (notesButton.disabled) return;
   const open = !workareaElement.classList.contains("notes-open");
+  if (open) renderAnnotationUi();
   workareaElement.classList.toggle("notes-open", open);
   notesPanelElement.classList.toggle("hidden", !open);
 }
@@ -1372,13 +1448,22 @@ function renderWorkbook(): void {
       const address = xlsx.utils.encode_cell({ r: rowIndex, c: column });
       td.dataset.sheet = activeSheetName;
       td.dataset.cell = address;
+      const noteCount = cellAnnotations(activeSheetName, address).length;
+      if (noteCount > 0) td.dataset.noteLabel = noteCount > 1 ? `●${noteCount}` : "●";
       const selectCell = () => {
         activeCellLocator = { sheet: activeSheetName, cell: address };
         updateCursorStatus();
-        updateAnnotationScopeOptions();
       };
-      td.addEventListener("click", selectCell);
+      td.addEventListener("click", (event) => {
+        selectCell();
+        if (noteCount === 0) return;
+        const rect = td.getBoundingClientRect();
+        if (event.clientX >= rect.right - 22 && event.clientY <= rect.top + 18) {
+          focusAnnotationsFor(cellAnnotations(activeSheetName, address));
+        }
+      });
       td.addEventListener("focus", selectCell);
+      td.addEventListener("contextmenu", selectCell);
       td.addEventListener("input", () => {
         sheet[address] = { t: "s", v: td.textContent || "" };
         if (!sheet["!ref"]) sheet["!ref"] = "A1";
@@ -1391,6 +1476,17 @@ function renderWorkbook(): void {
   table.append(tbody);
   excelTableWrapElement.replaceChildren(table);
   excelMetaElement.textContent = `${activeWorkbook.SheetNames.length} 个工作表 · ${activeSheetName}`;
+}
+
+// Update cell marker badges in place (no table rebuild, so editing focus survives annotation changes).
+function refreshWorkbookMarkers(): void {
+  if (!activeWorkbook) return;
+  for (const td of Array.from(excelTableWrapElement.querySelectorAll<HTMLElement>("td[data-cell]"))) {
+    const cell = td.dataset.cell || "";
+    const count = cellAnnotations(activeSheetName, cell).length;
+    if (count > 0) td.dataset.noteLabel = count > 1 ? `●${count}` : "●";
+    else delete td.dataset.noteLabel;
+  }
 }
 
 async function saveSpreadsheet(): Promise<void> {
@@ -1419,7 +1515,6 @@ function updatePdfPageLabel(): void {
   if (!activePdfDocument) return;
   pdfPageLabelElement.textContent = `PDF 连续阅读 · 第 ${activePdfPage} / ${activePdfDocument.numPages} 页`;
   updateCursorStatus();
-  updateAnnotationScopeOptions();
 }
 
 function updateActivePdfPageFromScroll(): void {
@@ -1460,9 +1555,33 @@ async function renderPdfPageInto(pageNumber: number, host: HTMLElement): Promise
     label.textContent = `第 ${pageNumber} 页`;
     host.replaceChildren(label, canvas);
     host.dataset.rendered = "true";
+    attachPdfPageMarker(pageNumber, host);
   } finally {
     pdfPageRendering.delete(pageNumber);
   }
+}
+
+function attachPdfPageMarker(pageNumber: number, host: HTMLElement): void {
+  const items = pageAnnotations(pageNumber);
+  const existing = host.querySelector<HTMLElement>(".pdf-page-marker");
+  if (items.length === 0) {
+    existing?.remove();
+    return;
+  }
+  const badge = existing ?? (() => {
+    const element = document.createElement("button");
+    element.type = "button";
+    element.className = "pdf-page-marker";
+    element.addEventListener("click", () => focusAnnotationsFor(pageAnnotations(pageNumber)));
+    host.append(element);
+    return element;
+  })();
+  badge.textContent = `●${items.length}`;
+  badge.title = `第 ${pageNumber} 页 · ${items.length} 条批注`;
+}
+
+function refreshPdfPageMarkers(): void {
+  for (const [pageNumber, host] of pdfPageHosts) attachPdfPageMarker(pageNumber, host);
 }
 
 async function renderPdfDocumentContinuous(): Promise<void> {
@@ -1490,6 +1609,7 @@ async function renderPdfDocumentContinuous(): Promise<void> {
   for (const host of pdfPageHosts.values()) pdfPageObserver.observe(host);
   activePdfPage = 1;
   updatePdfPageLabel();
+  refreshPdfPageMarkers();
   const firstPage = pdfPageHosts.get(1);
   if (firstPage) await renderPdfPageInto(1, firstPage);
 }
@@ -1535,6 +1655,7 @@ async function openBinaryNode(node: TreeNode, handler: HandlerKind): Promise<voi
 
 async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Promise<void> {
   closeFindBar();
+  closeComposer();
   activeNode = node;
   activeSession = null;
   activeBinarySession = null;
@@ -1550,15 +1671,13 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Pro
   markdownContentRevision = 0;
   markdownPreviewRevision = -1;
   markdownPreviewHtml = "";
-  activeAnnotations = null;
-  activeAnnotationPath = "";
-  activeAnnotationStale = false;
+  resetAnnotations();
+  activeAnnotationId = null;
+  notesTagFilter = null;
   activeCellLocator = null;
-  previewSelectionSnapshot = null;
-  editSelectionSnapshot = null;
   updateHeader();
-  renderNotes();
-  if (node.kind === "file") void loadAnnotations(node);
+  renderAnnotationUi();
+  if (node.kind === "file" && getHandlerKind(node) !== "text") void loadAnnotationsForNode(node);
   showView("loading");
   renderTree();
   const handler = getHandlerKind(node);
@@ -1602,7 +1721,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Pro
       size: documentModel.size,
       modifiedTime: documentModel.modifiedTime,
     };
-    textEditorElement.value = documentModel.content;
+    ensureEditor().loadText(documentModel.content);
     editorFileLabelElement.textContent = `${node.name} · 文本编辑`;
     editorEncodingElement.textContent = documentModel.encoding.toUpperCase();
     if (isMarkdownNode(node)) {
@@ -1614,6 +1733,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Pro
     }
     updateHeader();
     renderTree();
+    if (node.kind === "file") void loadAnnotationsForNode(node);
   } catch (error) {
     if (activeNode?.id !== node.id) return;
     const failure = commandFailure(error);
@@ -1634,7 +1754,7 @@ function updateCursorStatus(): void {
   }
   const handler = getHandlerKind(activeNode);
   if (handler === "text") {
-    const line = textEditorElement.value.slice(0, textEditorElement.selectionStart).split("\n").length;
+    const line = textEditor ? textEditor.lineOf(textEditor.selectionAnchor()) : 1;
     statusCursorElement.textContent = markdownViewMode === "preview" ? "预览模式" : `第 ${line} 行`;
   } else if (handler === "xlsx") {
     statusCursorElement.textContent = activeCellLocator ? `${activeCellLocator.sheet}!${activeCellLocator.cell}` : "未选中单元格";
@@ -1646,7 +1766,7 @@ function updateCursorStatus(): void {
 }
 
 function updateTextStatus(): void {
-  const lineCount = textEditorElement.value.split("\n").length;
+  const lineCount = textEditor ? textEditor.lineCount() : 0;
   statusInfoElement.textContent = `${lineCount} 行 · ${activeNode?.dirty ? "未保存" : "已保存"}`;
   updateCursorStatus();
 }
@@ -1659,11 +1779,11 @@ function refreshFindMatches(): void {
   findMatches = [];
   findMatchIndex = -1;
   const query = findInputElement.value;
-  if (!findSupported() || !query) {
+  if (!findSupported() || !textEditor || !query) {
     findStatusElement.textContent = query ? "无匹配" : "";
     return;
   }
-  const source = textEditorElement.value;
+  const source = textEditor.getText();
   const haystack = findCaseInput.checked ? source : source.toLocaleLowerCase();
   const needle = findCaseInput.checked ? query : query.toLocaleLowerCase();
   let offset = 0;
@@ -1677,19 +1797,17 @@ function refreshFindMatches(): void {
 }
 
 function selectFindMatch(index: number): void {
-  if (findMatches.length === 0) return;
+  if (findMatches.length === 0 || !textEditor) return;
   findMatchIndex = (index + findMatches.length) % findMatches.length;
   const match = findMatches[findMatchIndex];
-  textEditorElement.focus();
-  textEditorElement.setSelectionRange(match.start, match.end);
+  textEditor.selectRange(match);
   findStatusElement.textContent = `${findMatchIndex + 1} / ${findMatches.length}`;
-  updateAnnotationScopeOptions();
 }
 
 function findNextMatch(direction: 1 | -1): void {
   refreshFindMatches();
-  if (findMatches.length === 0) return;
-  const cursor = textEditorElement.selectionStart;
+  if (findMatches.length === 0 || !textEditor) return;
+  const cursor = textEditor.selectionRange().start;
   let index = -1;
   if (direction > 0) {
     index = findMatches.findIndex((match) => match.start > cursor);
@@ -1727,46 +1845,41 @@ function closeFindBar(): void {
 }
 
 function replaceCurrentMatch(): void {
-  if (!findSupported()) return;
+  if (!findSupported() || !textEditor) return;
+  const editor = textEditor;
   const query = findInputElement.value;
-  const start = textEditorElement.selectionStart;
-  const end = textEditorElement.selectionEnd;
-  const selected = textEditorElement.value.slice(start, end);
+  const { start, end } = editor.selectionRange();
+  const selected = editor.getText().slice(start, end);
   const same = findCaseInput.checked ? selected === query : selected.toLocaleLowerCase() === query.toLocaleLowerCase();
   if (!query || !same) {
     findNextMatch(1);
     return;
   }
-  textEditorElement.setRangeText(replaceInputElement.value, start, end, "select");
-  textEditorElement.dispatchEvent(new Event("input", { bubbles: true }));
+  const replacement = replaceInputElement.value;
+  editor.replaceRange({ from: start, to: end, insert: replacement });
+  editor.selectRange({ start, end: start + replacement.length });
   refreshFindMatches();
   findNextMatch(1);
 }
 
 function replaceAllMatches(): void {
-  if (!findSupported()) return;
+  if (!findSupported() || !textEditor) return;
   refreshFindMatches();
   if (findMatches.length === 0) return;
   if (!window.confirm(`确认替换全部 ${findMatches.length} 个匹配？`)) return;
   const replacement = replaceInputElement.value;
-  for (let index = findMatches.length - 1; index >= 0; index -= 1) {
-    const match = findMatches[index];
-    textEditorElement.setRangeText(replacement, match.start, match.end, "preserve");
-  }
-  textEditorElement.dispatchEvent(new Event("input", { bubbles: true }));
+  textEditor.replaceRanges(findMatches.map((match) => ({ from: match.start, to: match.end, insert: replacement })));
   refreshFindMatches();
   showToast("已完成全部替换");
 }
 
 function markDirty(): void {
-  if (!activeNode || !activeSession) return;
+  if (!activeNode || !activeSession || !textEditor) return;
   activeNode.dirty = true;
-  activeNode.content = textEditorElement.value;
-  editSelectionSnapshot = null;
+  activeNode.content = textEditor.getText();
   if (isMarkdownNode(activeNode)) {
     markdownContentRevision += 1;
     markdownPreviewRevision = -1;
-    previewSelectionSnapshot = null;
   }
   updateTextStatus();
   renderTree();
@@ -1784,14 +1897,16 @@ async function saveCurrent(): Promise<void> {
     }
     return;
   }
-  if (handler !== "text" || !activeSession) return;
+  if (handler !== "text" || !activeSession || !textEditor) return;
   const node = activeNode;
   const session = activeSession;
+  const editor = textEditor;
+  const content = editor.getText();
   statusInfoElement.textContent = "保存中…";
   try {
     const metadata = await invoke<FileMetadata>("save_text_file", {
       path: session.path,
-      content: textEditorElement.value,
+      content,
       encoding: session.encoding,
       expectedSize: session.size,
       expectedModifiedTime: session.modifiedTime,
@@ -1799,13 +1914,19 @@ async function saveCurrent(): Promise<void> {
     if (activeNode?.id !== node.id) return;
     node.size = metadata.size;
     node.modifiedTime = metadata.modifiedTime;
-    node.content = textEditorElement.value;
+    node.content = content;
     node.dirty = false;
     activeSession = { ...session, size: metadata.size, modifiedTime: metadata.modifiedTime };
+    editor.setLastSavedText(content);
     updateTextStatus();
     updateHeader();
     renderTree();
     showToast(`已保存 ${node.name}`);
+    try {
+      await syncAfterSave(content, currentMarkerRanges(editor.view));
+    } catch {
+      showToast("文件已保存，但批注位置更新失败。批注文件仍保留旧位置，可稍后重新定位。", true);
+    }
   } catch (error) {
     const failure = commandFailure(error);
     if (failure.code === "EXTERNAL_MODIFICATION") {
@@ -2064,7 +2185,7 @@ async function renameDocument(node: TreeNode, newName: string): Promise<void> {
     }
     renderTree();
     updateHeader();
-    if (activeNode?.kind === "file" && containsNode(node, activeNode)) void loadAnnotations(activeNode);
+    if (activeNode?.kind === "file" && containsNode(node, activeNode)) void loadAnnotationsForNode(activeNode);
     void saveWorkspaceState();
     showToast(`已重命名为 ${metadata.name}`);
   } catch (error) {
@@ -2424,19 +2545,57 @@ function removeNode(node: TreeNode): void {
   if (activeNode && containsNode(node, activeNode)) {
     activeNode = null;
     activeSession = null;
-    activeAnnotations = null;
-    activeAnnotationPath = "";
-    activeAnnotationStale = false;
+    resetAnnotations();
+    activeAnnotationId = null;
+    notesTagFilter = null;
+    closeComposer();
+    hideAnnotationBubble();
     activeCellLocator = null;
     workareaElement.classList.remove("notes-open");
     notesPanelElement.classList.add("hidden");
-    renderNotes();
+    renderAnnotationUi();
     showView("empty");
     updateHeader();
   }
   renderTree();
   void saveWorkspaceState();
   showToast(`已移除 ${node.name}（磁盘文件未删除）`);
+}
+
+function findLoadedNode(path: string): TreeNode | null {
+  const search = (node: TreeNode): TreeNode | null => {
+    if (node.kind !== "docs" && node.path && samePath(node.path, path)) return node;
+    for (const child of node.children) {
+      const found = search(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const root of roots) {
+    const found = search(root);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function scrollTreeToNode(node: TreeNode): Promise<void> {
+  const chain: TreeNode[] = [];
+  const walk = (parent: TreeNode): boolean => {
+    chain.push(parent);
+    if (parent.id === node.id) return true;
+    for (const child of parent.children) if (walk(child)) return true;
+    chain.pop();
+    return false;
+  };
+  for (const root of roots) if (walk(root)) break;
+  for (const ancestor of chain.slice(0, -1)) {
+    if (!ancestor.expanded) {
+      ancestor.expanded = true;
+      await loadChildren(ancestor);
+    }
+  }
+  renderTree();
+  treeElement.querySelector<HTMLElement>(".tree-row.active")?.scrollIntoView({ block: "nearest" });
 }
 
 async function chooseDocuments(): Promise<void> {
@@ -2448,7 +2607,11 @@ async function chooseDocuments(): Promise<void> {
     for (const path of paths) {
       const metadata = await invoke<FileMetadata>("get_file_metadata", { path });
       if (metadata.isDirectory || metadata.name.toLowerCase().endsWith(".qnote")) continue;
-      if (docsSection.children.some((child) => samePath(child.path, metadata.path))) continue;
+      const existing = findLoadedNode(metadata.path);
+      if (existing) {
+        lastAdded = existing;
+        continue;
+      }
       const node = createFileNode(metadata);
       docsSection.children.push(node);
       lastAdded = node;
@@ -2457,7 +2620,10 @@ async function chooseDocuments(): Promise<void> {
     docsSection.expanded = true;
     renderTree();
     void saveWorkspaceState();
-    if (lastAdded) await openNode(lastAdded);
+    if (lastAdded) {
+      if (activeNode?.id !== lastAdded.id) await openNode(lastAdded);
+      await scrollTreeToNode(lastAdded);
+    }
     if (added > 0) showToast(`已加入 ${added} 个文档`);
   } catch (error) {
     showToast(failureMessage(error), true);
@@ -2582,16 +2748,34 @@ function bindEvents(): void {
   } else {
     winControlsElement.classList.add("hidden");
   }
-  markdownEditButton.addEventListener("click", () => setMarkdownViewMode("edit"));
-  markdownPreviewButton.addEventListener("click", () => setMarkdownViewMode("preview"));
+  markdownEditButton.addEventListener("click", () => { setMarkdownViewMode("edit"); updateAnnotationBubble(); });
+  markdownPreviewButton.addEventListener("click", () => { setMarkdownViewMode("preview"); updateAnnotationBubble(); });
   toastCloseButton.addEventListener("click", hideToast);
   notesButton.addEventListener("click", toggleNotes);
   closeNotesButton.addEventListener("click", () => {
     workareaElement.classList.remove("notes-open");
     notesPanelElement.classList.add("hidden");
   });
-  addNoteButton.addEventListener("click", () => void addAnnotation());
-  recoverNotesButton.addEventListener("click", () => void recoverAnnotations());
+  addGeneralNoteButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const rect = addGeneralNoteButton.getBoundingClientRect();
+    openComposerForContext({ scopeHint: "文件级批注（关联全文）" }, annotationSubmit("general", null, null), { x: rect.left, y: rect.bottom });
+  });
+  recoverNotesButton.addEventListener("click", () => void recoverNotes());
+  noteFilterAllButton.addEventListener("click", () => { notesFilter = "all"; renderAnnotationUi(); });
+  noteFilterOpenButton.addEventListener("click", () => { notesFilter = "open"; renderAnnotationUi(); });
+  noteTagFilterClearButton.addEventListener("click", () => { notesTagFilter = null; renderAnnotationUi(); });
+  markdownPreviewElement.addEventListener("click", (event) => {
+    const highlight = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>(".md-annotation-hl") : null;
+    if (!highlight?.dataset.annotationId) return;
+    activateAnnotation(highlight.dataset.annotationId, { fromMarker: true });
+  });
+  annotationBubbleElement.addEventListener("mousedown", (event) => event.preventDefault());
+  annotationBubbleElement.addEventListener("click", () => openContextComposer());
+  contentElement.addEventListener("contextmenu", (event) => {
+    if (!annotationDocument() || !config.annotations.enabled) return;
+    showMenu([{ label: "＋ 添加批注", action: () => openContextComposer({ x: event.clientX, y: event.clientY }) }], event.clientX, event.clientY);
+  });
   pdfCanvasWrapElement.addEventListener("scroll", updateActivePdfPageFromScroll, { passive: true });
   helpCloseButton.addEventListener("click", closeHelp);
   settingsCloseButton.addEventListener("click", closeSettings);
@@ -2617,16 +2801,9 @@ function bindEvents(): void {
     if (event.key === "Enter") { event.preventDefault(); replaceCurrentMatch(); }
     if (event.key === "Escape") closeFindBar();
   });
-  textEditorElement.addEventListener("input", markDirty);
-  textEditorElement.addEventListener("select", () => { captureEditSelection(); updateAnnotationScopeOptions(); updateCursorStatus(); });
-  textEditorElement.addEventListener("selectionchange", () => { captureEditSelection(); updateAnnotationScopeOptions(); updateCursorStatus(); });
-  textEditorElement.addEventListener("keyup", () => { updateAnnotationScopeOptions(); updateCursorStatus(); });
   document.addEventListener("selectionchange", () => {
-    capturePreviewSelection();
-    captureEditSelection();
-    updateAnnotationScopeOptions();
+    scheduleAnnotationBubble();
   });
-  noteScopeElement.addEventListener("change", updateAnnotationScopeOptions);
   nameCloseButton.addEventListener("click", closeNamePrompt);
   nameCancelButton.addEventListener("click", closeNamePrompt);
   nameOkButton.addEventListener("click", confirmName);
@@ -2640,6 +2817,12 @@ function bindEvents(): void {
       closeSettings();
       closeHelp();
       closeFindBar();
+      closeComposer();
+    }
+    if (event.ctrlKey && event.altKey && event.code === "KeyM") {
+      event.preventDefault();
+      openContextComposer();
+      return;
     }
     if (event.ctrlKey && (event.code === "Backquote" || event.key === "`")) {
       event.preventDefault();
@@ -2679,7 +2862,10 @@ async function openPaths(paths: string[]): Promise<void> {
     try {
       const metadata = await invoke<FileMetadata>("get_file_metadata", { path });
       if (metadata.isDirectory) {
-        if (!roots.some((node) => node.kind === "workspace" && samePath(node.path, metadata.path))) {
+        const existing = roots.find((node) => node.kind === "workspace" && samePath(node.path, metadata.path));
+        if (existing) {
+          lastAdded = existing;
+        } else {
           const workspace = createContainer("workspace", metadata.name || basename(metadata.path), metadata.path);
            workspace.size = metadata.size;
            workspace.modifiedTime = metadata.modifiedTime;
@@ -2689,7 +2875,10 @@ async function openPaths(paths: string[]): Promise<void> {
           added += 1;
         }
       } else if (!metadata.name.toLowerCase().endsWith(config.annotations.extension.toLowerCase())) {
-        if (!docsSection.children.some((child) => samePath(child.path, metadata.path))) {
+        const existing = findLoadedNode(metadata.path);
+        if (existing) {
+          lastAdded = existing;
+        } else {
           const node = createFileNode(metadata);
           docsSection.children.push(node);
           lastAdded = node;
@@ -2703,13 +2892,41 @@ async function openPaths(paths: string[]): Promise<void> {
   if (added > 0) {
     renderTree();
     void saveWorkspaceState();
-    if (lastAdded?.kind === "file") await openNode(lastAdded);
     showToast(`已打开 ${added} 个文件/工作区`);
+  }
+  if (lastAdded) {
+    if (lastAdded.kind === "file") {
+      if (activeNode?.id !== lastAdded.id) await openNode(lastAdded);
+    } else {
+      selectContainer(lastAdded);
+    }
+    await scrollTreeToNode(lastAdded);
+  }
+}
+
+async function bringWindowToFront(): Promise<void> {
+  try {
+    const appWindow = getCurrentWindow();
+    await appWindow.unminimize();
+    await appWindow.show();
+    await appWindow.setAlwaysOnTop(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    await appWindow.setAlwaysOnTop(false);
+    await appWindow.setFocus();
+  } catch {
+    /* 唤起失败不阻塞打开流程 */
   }
 }
 
 async function initialize(): Promise<void> {
   bindEvents();
+  onAnnotationsChanged(() => {
+    renderAnnotationUi();
+    refreshWorkbookMarkers();
+    refreshPdfPageMarkers();
+    if (isMarkdownNode(activeNode) && markdownViewMode === "preview") renderMarkdownPreview();
+  });
+  renderAnnotationUi();
   if (!hasTauriRuntime()) {
     runtimeHintElement.textContent = "浏览器预览：请使用 QuickEdit 桌面运行文件操作";
     renderTree();
@@ -2718,7 +2935,7 @@ async function initialize(): Promise<void> {
   try {
     config = await invoke<AppConfig>("load_config");
     applyTheme(config.appearance.theme);
-    runtimeHintElement.textContent = "本地文件服务已连接 · V1 稳定版";
+    runtimeHintElement.textContent = "本地文件服务已连接 · V2.1";
   } catch {
     config = fallbackConfig;
     applyTheme(config.appearance.theme);
@@ -2733,7 +2950,10 @@ async function initialize(): Promise<void> {
   } catch {
     /* 启动参数读取失败不阻塞主流程 */
   }
-  void listen<string[]>("open-paths", (event) => void openPaths(event.payload));
+  void listen<string[]>("open-paths", (event) => {
+    if (event.payload.length > 0) void openPaths(event.payload);
+    void bringWindowToFront();
+  });
   void listen<TerminalOutputEvent>("terminal-output", (event) => {
     const session = terminalSessions.find((item) => item.processId === event.payload.sessionId);
     session?.terminal.write(base64ToBytes(event.payload.data));

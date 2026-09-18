@@ -63,8 +63,9 @@
                </section>
                <div id="textPane" class="editor-pane hidden">
                 <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><span id="editorEncoding">UTF-8</span></div>
-                <textarea id="textEditor" spellcheck="false" aria-label="文本编辑器"></textarea>
+                <div id="textEditorHost" class="text-editor-host" aria-label="文本编辑器"></div>
               </div>
+              <button id="annotationBubble" class="annotation-bubble hidden" type="button">+ 批注</button>
               <div id="markdownPreviewPane" class="markdown-preview-pane hidden"><article id="markdownPreview" class="markdown-preview"></article></div>
               <div id="excelPane" class="format-pane hidden">
                 <div class="format-toolbar"><div id="sheetTabs" class="sheet-tabs"></div><span id="excelMeta" class="format-meta"></span></div>
@@ -86,11 +87,10 @@
               <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span><button id="terminalToggle" class="statusbar-terminal" type="button" title="内置终端（Ctrl+`）">⌨ 终端</button></footer>
             </div>
             <aside id="notesPanel" class="notes-panel hidden" aria-label="文档批注">
-              <div class="notes-head"><div><strong>文档批注</strong><div id="noteFileLabel" class="note-file">未选择文档</div></div><button id="closeNotesButton" class="icon-btn" type="button" aria-label="关闭批注">×</button></div>
-              <div class="notes-hint">批注独立保存在目标文件同目录的伴生文件中；重命名会同步更新 qnote。</div>
+              <div class="notes-head"><div><strong>批注 <span id="notePanelCount">0</span></strong><div id="noteFileLabel" class="note-file">未选择文档</div></div><button id="closeNotesButton" class="icon-btn" type="button" aria-label="关闭批注">×</button></div>
+              <div class="notes-toolbar"><button id="addGeneralNoteButton" class="btn note-add-file" type="button">+ 文件批注</button><button id="noteTagFilterClearButton" class="note-tag-filter hidden" type="button" title="清除标签过滤"></button><span class="notes-filter"><button id="noteFilterAllButton" class="note-filter active" type="button">全部</button><button id="noteFilterOpenButton" class="note-filter" type="button">未解决</button></span></div>
               <button id="recoverNotesButton" class="btn note-recover hidden" type="button">备份损坏 qnote 并新建</button>
               <div id="notesList" class="notes-list"></div>
-              <div class="note-compose"><div id="noteContextHint" class="note-context-hint">当前批注默认关联全文。</div><textarea id="noteInput" class="note-input" placeholder="输入一条批注…"></textarea><div class="note-compose-row"><select id="noteScope" class="note-scope"><option value="general">全文</option><option value="selection">当前选区</option><option value="page">当前页</option><option value="cell">当前单元格</option></select><button id="addNoteButton" class="btn primary" type="button">添加</button></div></div>
             </aside>
             <button id="notesBtn" class="notes-float" type="button" disabled aria-label="打开批注面板">批注 <span id="noteCount">0</span></button>
           </section>

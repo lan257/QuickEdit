@@ -5,8 +5,8 @@ QuickEdit 是一个 **Windows 优先、轻量、本地、快速的文件编辑�
 它不是为了替代完整的 WPS、Microsoft Office 或 VS Code，而是为“打开本地文件、快速查看、简单编辑、批注和保存”这类高频任务提供更轻、更快、更集中的入口。
 
 <p align="center">
-  <a href="https://github.com/lan257/QuickEdit/releases/tag/v1.1.0">
-    <img src="https://img.shields.io/badge/QuickEdit-v1.1.0-5b6cf9" alt="QuickEdit v1.1.0" />
+  <a href="https://github.com/lan257/QuickEdit/releases">
+    <img src="https://img.shields.io/badge/QuickEdit-v2.1.0-5b6cf9" alt="QuickEdit v2.1.0" />
   </a>
   <img src="https://img.shields.io/badge/platform-Windows-0078d4" alt="Windows" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="Private project" />
@@ -19,7 +19,7 @@ QuickEdit 是一个 **Windows 优先、轻量、本地、快速的文件编辑�
   <img src="docs/images/quickedit-terminal.png" alt="QuickEdit 内置终端界面" width="48%" />
 </p>
 
-> 展示图来自当前 `1.1.0` 代码，已对本机文件路径做脱敏处理。
+> 展示图来自当前 `2.1.0` 代码，已对本机文件路径做脱敏处理。
 
 ## 为什么需要 QuickEdit
 
@@ -135,7 +135,7 @@ QuickEdit 不直接把批注写入原文件，而是使用同目录伴生的 `.q
 
 ### V1：稳定基础版本
 
-当前版本：**`1.1.0`**。
+当前版本：**`2.1.0`**。
 
 V1 定位为 QuickEdit 的稳定基础版本，重点是维护和完善已有能力：
 
@@ -265,9 +265,9 @@ QuickEdit/
 
 当前版本号在以下文件保持一致：
 
-- `package.json`：`1.1.0`；
-- `src-tauri/tauri.conf.json`：`1.1.0`；
-- `src-tauri/Cargo.toml`：`1.1.0`。
+- `package.json`：`2.1.0`；
+- `src-tauri/tauri.conf.json`：`2.1.0`；
+- `src-tauri/Cargo.toml`：`2.1.0`。
 
 推荐在提交前执行：
 
