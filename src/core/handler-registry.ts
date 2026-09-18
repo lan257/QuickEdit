@@ -31,6 +31,7 @@ export interface HandlerManifest {
 
 const manifests = new Map<string, HandlerManifest>();
 const instances = new Map<string, DocumentHandler>();
+let activeId: string | null = null;
 
 export function registerHandler(manifest: HandlerManifest): void {
   for (const extension of manifest.extensions) {
@@ -51,18 +52,19 @@ export async function openWithHandler(node: TreeNode, config: AppConfig): Promis
     instances.set(manifest.id, handler);
   }
   await handler.open({ node, config });
+  activeId = manifest.id;
   return true;
 }
 
-export function activeCapabilities(extension: string): DocumentCapabilities | null {
-  const manifest = findHandlerManifest(extension);
-  if (!manifest) return null;
-  const handler = instances.get(manifest.id);
-  return handler ? handler.capabilities : null;
+// Release the currently open handler's resources (Blob URLs, observers, workers)
+// before switching documents. No-op when a built-in view is active.
+export async function disposeActiveHandler(): Promise<void> {
+  if (!activeId) return;
+  const handler = instances.get(activeId);
+  activeId = null;
+  if (handler) await handler.dispose();
 }
 
-export async function disposeHandler(id: string): Promise<void> {
-  const handler = instances.get(id);
-  if (!handler) return;
-  await handler.dispose();
+export function activeHandlerId(): string | null {
+  return activeId;
 }

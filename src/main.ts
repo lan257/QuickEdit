@@ -68,19 +68,19 @@ import {
   samePath,
 } from "./core/format";
 import {
-  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement, docxPaneElement,
-  editorEncodingElement, editorFileLabelElement, emptyViewElement, excelMetaElement, excelPaneElement, excelTableWrapElement,
+  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement,
+  editorEncodingElement, editorFileLabelElement, excelMetaElement, excelTableWrapElement,
   fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
-  findStatusElement, folderInfoPaneElement, loadingViewElement, logoButton, markdownEditButton, markdownModeBarElement, markdownPreviewButton,
-  markdownPreviewElement, markdownPreviewPaneElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
+  findStatusElement, logoButton, markdownEditButton, markdownPreviewButton,
+  markdownPreviewElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
   nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
   noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
   noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement, pdfCanvasWrapElement, pdfPageLabelElement,
-  pdfPaneElement, recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput,
+  recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput,
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
   settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
-  textPaneElement, themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
+  themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
   treeElement, treeSearchInput, treeSortSelect,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
   helpContentElement, helpOverlayElement, confirmCloseInput, annotationEnabledInput, closeNotesButton, helpCloseButton,
@@ -88,7 +88,9 @@ import {
 import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
 import { renderInfoView, type InfoViewAction, type InfoViewKind, type InfoViewMetadataItem } from "./ui/info-view";
-import { openWithHandler } from "./core/handler-registry";
+import { setMarkdownBarEnabled, showView } from "./ui/views";
+import { disposeActiveHandler, openWithHandler } from "./core/handler-registry";
+import { registerFormatHandlers } from "./handlers/index";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -380,6 +382,7 @@ function renderNode(node: TreeNode, depth: number): void {
 }
 
 function selectContainer(node: TreeNode): void {
+  void disposeActiveHandler();
   closeFindBar();
   activeNode = node;
   activeSession = null;
@@ -638,19 +641,6 @@ function updateHeader(): void {
   const annotationTotal = annotationDocument()?.annotations.length || 0;
   noteCountElement.textContent = String(annotationTotal);
   notePanelCountElement.textContent = String(annotationTotal);
-}
-
-function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx"): void {
-  emptyViewElement.classList.toggle("hidden", view !== "empty");
-  loadingViewElement.classList.toggle("hidden", view !== "loading");
-  folderInfoPaneElement.classList.toggle("hidden", view !== "folder");
-  textPaneElement.classList.toggle("hidden", view !== "text");
-  markdownPreviewPaneElement.classList.toggle("hidden", view !== "markdownPreview");
-  excelPaneElement.classList.toggle("hidden", view !== "xlsx");
-  pdfPaneElement.classList.toggle("hidden", view !== "pdf");
-  docxPaneElement.classList.toggle("hidden", view !== "docx");
-  const markdownBarVisible = (view === "text" || view === "markdownPreview") && isMarkdownNode(activeNode);
-  markdownModeBarElement.classList.toggle("hidden", !markdownBarVisible);
 }
 
 function isMarkdownNode(node: TreeNode | null): boolean {
@@ -1379,6 +1369,7 @@ async function openBinaryNode(node: TreeNode, handler: HandlerKind): Promise<voi
 
 async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceText?: boolean }): Promise<void> {
   if (options?.forceText) node.forceText = true;
+  void disposeActiveHandler();
   closeFindBar();
   closeComposer();
   activeNode = node;
@@ -1393,6 +1384,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   pdfPageRendering.clear();
   activePdfPage = 1;
   markdownViewMode = isMarkdownNode(node) ? (options?.preferEdit ? "edit" : "preview") : "edit";
+  setMarkdownBarEnabled(isMarkdownNode(node) && node.kind === "file");
   markdownContentRevision = 0;
   markdownPreviewRevision = -1;
   markdownPreviewHtml = "";
@@ -2358,6 +2350,7 @@ async function bringWindowToFront(): Promise<void> {
 
 async function initialize(): Promise<void> {
   bindEvents();
+  registerFormatHandlers();
   onAnnotationsChanged(() => {
     renderAnnotationUi();
     refreshWorkbookMarkers();
