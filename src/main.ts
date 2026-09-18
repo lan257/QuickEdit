@@ -59,6 +59,7 @@ import {
   countFiles,
   escapeHtml,
   failureMessage,
+  formatBytes,
   formatCreatedTime,
   formatMeta,
   formatModifiedTime,
@@ -70,9 +71,7 @@ import {
   addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement, docxPaneElement,
   editorEncodingElement, editorFileLabelElement, emptyViewElement, excelMetaElement, excelPaneElement, excelTableWrapElement,
   fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
-  findStatusElement, folderCopyPathButton, folderInfoCountElement, folderInfoCreatedElement, folderInfoKindElement,
-  folderInfoLocationElement, folderInfoModifiedElement, folderInfoNameElement, folderInfoPaneElement, folderInfoTitleElement,
-  folderTerminalButton, loadingViewElement, logoButton, markdownEditButton, markdownModeBarElement, markdownPreviewButton,
+  findStatusElement, folderInfoPaneElement, loadingViewElement, logoButton, markdownEditButton, markdownModeBarElement, markdownPreviewButton,
   markdownPreviewElement, markdownPreviewPaneElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
   nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
   noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
@@ -82,12 +81,14 @@ import {
   settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
   textPaneElement, themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
-  treeElement, treeSearchInput, treeSortSelect, unsupportedMessageElement, unsupportedTitleElement, unsupportedViewElement,
+  treeElement, treeSearchInput, treeSortSelect,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
   helpContentElement, helpOverlayElement, confirmCloseInput, annotationEnabledInput, closeNotesButton, helpCloseButton,
 } from "./ui/elements";
 import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
+import { renderInfoView, type InfoViewAction, type InfoViewKind, type InfoViewMetadataItem } from "./ui/info-view";
+import { openWithHandler } from "./core/handler-registry";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -192,6 +193,7 @@ function createFileNode(metadata: FileMetadata): TreeNode {
 }
 
 function getHandlerKind(node: TreeNode): HandlerKind {
+  if (node.forceText) return "text";
   const extension = node.extension.toLowerCase();
   if (config.handlers.text.enabled && config.handlers.text.extensions.some((item) => item.toLowerCase() === extension)) {
     return "text";
@@ -497,15 +499,80 @@ function showAddMenu(node: TreeNode, x: number, y: number): void {
 }
 
 function renderFolderInfo(node: TreeNode): void {
-  folderInfoTitleElement.textContent = node.name;
-  folderInfoKindElement.textContent = node.kind === "workspace" ? "工作区" : "文件夹";
-  folderInfoNameElement.textContent = node.name;
-  folderInfoModifiedElement.textContent = formatModifiedTime(node.modifiedTime);
-  folderInfoCreatedElement.textContent = formatCreatedTime(node.createdTime);
-  folderInfoLocationElement.textContent = node.path || "正在获取系统文档目录…";
-  folderInfoLocationElement.title = node.path;
-  folderInfoCountElement.textContent = node.childrenLoaded ? `${countFiles(node)} 个文件` : "未展开";
-  folderCopyPathButton.disabled = !node.path;
+  const metadata: InfoViewMetadataItem[] = [
+    { label: "名称", value: node.name },
+    { label: "修改日期", value: formatModifiedTime(node.modifiedTime) },
+    { label: "创建日期", value: formatCreatedTime(node.createdTime) },
+    { label: "位置", value: node.path || "正在获取系统文档目录…" },
+    { label: "包含文件", value: node.childrenLoaded ? `${countFiles(node)} 个文件` : "未展开" },
+  ];
+  const actions: InfoViewAction[] = [
+    { id: "terminal", label: "⌨ 打开终端", primary: true, execute: () => void terminalFeature.openFor(node) },
+    { id: "copy", label: "复制位置", execute: () => void copyPath(node.path) },
+  ];
+  renderInfoView({
+    kind: "folder",
+    badge: node.kind === "workspace" ? "WS" : "DIR",
+    title: node.name,
+    subtitle: node.kind === "workspace" ? "工作区" : "文件夹",
+    metadata,
+    actions,
+  });
+}
+
+const BINARY_FALLBACK_EXTENSIONS = new Set([
+  ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+  ".exe", ".dll", ".so", ".msi", ".bin",
+  ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".svg",
+  ".mp3", ".mp4", ".avi", ".mov", ".mkv", ".wav",
+  ".ttf", ".otf", ".woff", ".woff2", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+]);
+
+function looksLikeTextFile(node: TreeNode): boolean {
+  if (BINARY_FALLBACK_EXTENSIONS.has(node.extension.toLowerCase())) return false;
+  const limit = Math.max(1, config.editor.maxTextFileSizeMB) * 1024 * 1024;
+  return node.size > 0 && node.size <= limit;
+}
+
+async function openWithSystemApp(node: TreeNode): Promise<void> {
+  try {
+    if (hasTauriRuntime()) {
+      const { openPath } = await import("@tauri-apps/plugin-opener");
+      await openPath(node.path);
+    } else {
+      showToast("浏览器预览不支持系统打开，请在桌面端使用。", true);
+    }
+  } catch (error) {
+    showToast(failureMessage(error), true);
+  }
+}
+
+// Application-level fallback for files without a usable handler (design doc §6).
+function showFileInfoView(node: TreeNode, kind: InfoViewKind, subtitle: string, options?: { retry?: boolean; openAsText?: boolean }): void {
+  const executable = node.extension.toLowerCase() === ".exe";
+  const badge = executable ? "EXE" : (node.extension ? node.extension.slice(1, 5).toUpperCase() : "FILE");
+  const metadata: InfoViewMetadataItem[] = [
+    { label: "名称", value: node.name },
+    { label: "类型", value: node.extension ? `${node.extension} 文件` : "无扩展名" },
+    { label: "大小", value: formatBytes(node.size) },
+    { label: "修改日期", value: formatModifiedTime(node.modifiedTime) },
+    { label: "创建日期", value: formatCreatedTime(node.createdTime) },
+    { label: "位置", value: node.path },
+  ];
+  const actions: InfoViewAction[] = [];
+  if (options?.retry) actions.push({ id: "retry", label: "重新尝试", primary: true, execute: () => void openNode(node) });
+  if (options?.openAsText) actions.push({ id: "text", label: "以文本方式打开", primary: !options.retry, execute: () => void openNode(node, { forceText: true }) });
+  actions.push({ id: "system", label: "使用系统程序打开", primary: !options?.retry && !options?.openAsText, execute: () => void openWithSystemApp(node) });
+  actions.push({ id: "copy", label: "复制位置", execute: () => void copyPath(node.path) });
+  renderInfoView({
+    kind: executable && kind === "unsupported" ? "executable" : kind,
+    badge,
+    title: node.name,
+    subtitle: executable && kind === "unsupported" ? "Windows 可执行程序" : subtitle,
+    metadata,
+    actions,
+  });
+  showView("folder");
 }
 
 function closeNotesPanel(): void {
@@ -573,7 +640,7 @@ function updateHeader(): void {
   notePanelCountElement.textContent = String(annotationTotal);
 }
 
-function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx" | "unsupported"): void {
+function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPreview" | "xlsx" | "pdf" | "docx"): void {
   emptyViewElement.classList.toggle("hidden", view !== "empty");
   loadingViewElement.classList.toggle("hidden", view !== "loading");
   folderInfoPaneElement.classList.toggle("hidden", view !== "folder");
@@ -582,7 +649,6 @@ function showView(view: "empty" | "loading" | "folder" | "text" | "markdownPrevi
   excelPaneElement.classList.toggle("hidden", view !== "xlsx");
   pdfPaneElement.classList.toggle("hidden", view !== "pdf");
   docxPaneElement.classList.toggle("hidden", view !== "docx");
-  unsupportedViewElement.classList.toggle("hidden", view !== "unsupported");
   const markdownBarVisible = (view === "text" || view === "markdownPreview") && isMarkdownNode(activeNode);
   markdownModeBarElement.classList.toggle("hidden", !markdownBarVisible);
 }
@@ -1311,7 +1377,8 @@ async function openBinaryNode(node: TreeNode, handler: HandlerKind): Promise<voi
   throw new Error("未接入该文件类型的 Handler。");
 }
 
-async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Promise<void> {
+async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceText?: boolean }): Promise<void> {
+  if (options?.forceText) node.forceText = true;
   closeFindBar();
   closeComposer();
   activeNode = node;
@@ -1347,21 +1414,30 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Pro
         renderTree();
       } catch (error) {
         const failure = commandFailure(error);
-        unsupportedTitleElement.textContent = `${node.extension || "该文件"} 加载失败`;
-        unsupportedMessageElement.textContent = failure.message || "无法加载该格式。";
         statusModeElement.textContent = "加载失败";
         statusInfoElement.textContent = failure.code || "FORMAT_ERROR";
-        showView("unsupported");
+        showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
         updateHeader();
         showToast(failure.message || "格式加载失败。", true);
       }
       return;
     }
-    unsupportedTitleElement.textContent = `${node.extension || "该文件"} 暂未接入内置处理器`;
-    unsupportedMessageElement.textContent = "当前扩展名未在 config.json Handler 中启用。";
+    try {
+      if (await openWithHandler(node, config)) {
+        updateHeader();
+        renderTree();
+        return;
+      }
+    } catch (error) {
+      statusModeElement.textContent = "加载失败";
+      statusInfoElement.textContent = commandFailure(error).code || "HANDLER_ERROR";
+      showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
+      showToast(failureMessage(error), true);
+      return;
+    }
     statusModeElement.textContent = "只读预览";
     statusInfoElement.textContent = "处理器待接入";
-    showView("unsupported");
+    showFileInfoView(node, "unsupported", "当前版本暂不支持预览", { openAsText: looksLikeTextFile(node) });
     return;
   }
 
@@ -1395,11 +1471,13 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean }): Pro
   } catch (error) {
     if (activeNode?.id !== node.id) return;
     const failure = commandFailure(error);
-    unsupportedTitleElement.textContent = failure.code === "TEXT_TOO_LARGE" ? "文件超过文本编辑上限" : "文档加载失败";
-    unsupportedMessageElement.textContent = failure.message || "无法可靠加载该文档。";
     statusModeElement.textContent = "加载失败";
     statusInfoElement.textContent = failure.code || "FILE_ERROR";
-    showView("unsupported");
+    if (failure.code === "TEXT_TOO_LARGE") {
+      showFileInfoView(node, "too-large", "文件较大，未以普通编辑模式打开");
+    } else {
+      showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
+    }
     updateHeader();
     showToast(failure.message || "文档加载失败。", true);
   }
@@ -2213,8 +2291,6 @@ function bindEvents(): void {
     terminalFeature.fit();
   });
   terminalFeature.bindEvents();
-  folderTerminalButton.addEventListener("click", () => void terminalFeature.openFor(activeNode));
-  folderCopyPathButton.addEventListener("click", () => void copyActivePath());
 }
 
 async function openPaths(paths: string[]): Promise<void> {

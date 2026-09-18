@@ -45,22 +45,7 @@
                 <span>打开文件夹只读取元数据，选中文档后才加载正文。</span>
               </div>
               <div id="loadingView" class="empty-view hidden"><div class="spinner"></div><strong>正在读取文档…</strong><span>正文按需加载，不扫描其他文件。</span></div>
-              <section id="folderInfoPane" class="folder-info-pane hidden" aria-label="文件夹信息">
-                 <div class="folder-info-card">
-                   <div class="folder-info-heading">
-                     <div class="folder-info-icon">DIR</div>
-                     <div><h2 id="folderInfoTitle">文件夹信息</h2><span id="folderInfoKind">文件夹</span></div>
-                   </div>
-                   <div class="folder-info-grid">
-                     <div class="folder-info-field"><span>名称</span><strong id="folderInfoName">—</strong></div>
-                     <div class="folder-info-field"><span>修改日期</span><strong id="folderInfoModified">—</strong></div>
-                     <div class="folder-info-field"><span>创建日期</span><strong id="folderInfoCreated">—</strong></div>
-                     <div class="folder-info-field folder-info-location"><span>位置</span><strong id="folderInfoLocation">—</strong></div>
-                     <div class="folder-info-field"><span>包含文件</span><strong id="folderInfoCount">0 个文件</strong></div>
-                   </div>
-                   <div class="folder-info-actions"><button id="folderTerminalButton" class="btn primary" type="button">⌨ 打开终端</button><button id="folderCopyPathButton" class="btn" type="button">复制位置</button></div>
-                 </div>
-               </section>
+              <section id="folderInfoPane" class="folder-info-pane hidden" aria-label="对象信息"></section>
                <div id="textPane" class="editor-pane hidden">
                 <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><span id="editorEncoding">UTF-8</span></div>
                 <div id="textEditorHost" class="text-editor-host" aria-label="文本编辑器"></div>
@@ -78,11 +63,6 @@
               <div id="docxPane" class="format-pane hidden">
                 <div class="format-toolbar"><span class="format-meta">DOCX 阅读视图</span><span class="format-meta">不修改原文档</span></div>
                 <article id="docxContent" class="docx-content"></article>
-              </div>
-              <div id="unsupportedView" class="empty-view hidden">
-                <div class="empty-icon muted">…</div>
-                <strong id="unsupportedTitle">暂未接入该文件类型</strong>
-                <span id="unsupportedMessage">当前 P0 Demo 先验证文本文件闭环。</span>
               </div>
               <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span><button id="terminalToggle" class="statusbar-terminal" type="button" title="内置终端（Ctrl+`）">⌨ 终端</button></footer>
             </div>

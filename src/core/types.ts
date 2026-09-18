@@ -34,6 +34,7 @@ export interface TreeNode {
   dirty: boolean;
   content?: string;
   encoding?: string;
+  forceText?: boolean;
 }
 
 export interface TextDocument {
