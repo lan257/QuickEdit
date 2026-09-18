@@ -8,4 +8,9 @@ export function registerFormatHandlers(): void {
     extensions: [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"],
     load: async () => (await import("./image/image-handler")).createImageHandler(),
   });
+  registerHandler({
+    id: "csv",
+    extensions: [".csv"],
+    load: async () => (await import("./csv/csv-handler")).createCsvHandler(),
+  });
 }

@@ -1,4 +1,4 @@
-import type { AppConfig, TreeNode } from "./types";
+import type { AppConfig, FileMetadata, TreeNode } from "./types";
 
 export interface DocumentCapabilities {
   editable: boolean;
@@ -20,6 +20,8 @@ export interface DocumentHandler {
   readonly id: string;
   readonly capabilities: DocumentCapabilities;
   open(context: HandlerContext): Promise<void>;
+  save?(): Promise<FileMetadata | null>;
+  isDirty?(): boolean;
   dispose(): void | Promise<void>;
 }
 
@@ -43,6 +45,12 @@ export function findHandlerManifest(extension: string): HandlerManifest | null {
   return manifests.get(extension.toLowerCase()) || null;
 }
 
+// A registered handler claims this extension and should win over the generic
+// text path (e.g. .csv is editable text but has a dedicated grid handler).
+export function hasHandler(extension: string): boolean {
+  return manifests.has(extension.toLowerCase());
+}
+
 export async function openWithHandler(node: TreeNode, config: AppConfig): Promise<boolean> {
   const manifest = findHandlerManifest(node.extension);
   if (!manifest) return false;
@@ -54,6 +62,17 @@ export async function openWithHandler(node: TreeNode, config: AppConfig): Promis
   await handler.open({ node, config });
   activeId = manifest.id;
   return true;
+}
+
+export async function saveActiveHandler(): Promise<FileMetadata | null> {
+  const handler = activeId ? instances.get(activeId) : null;
+  if (!handler?.save) return null;
+  return handler.save();
+}
+
+export function activeHandlerIsDirty(): boolean {
+  const handler = activeId ? instances.get(activeId) : null;
+  return handler?.isDirty ? handler.isDirty() : false;
 }
 
 // Release the currently open handler's resources (Blob URLs, observers, workers)

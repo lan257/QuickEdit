@@ -80,6 +80,7 @@ import {
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
   settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
+  csvSearchInput,
   themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
   treeElement, treeSearchInput, treeSortSelect,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
@@ -89,7 +90,7 @@ import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
 import { renderInfoView, type InfoViewAction, type InfoViewKind, type InfoViewMetadataItem } from "./ui/info-view";
 import { setMarkdownBarEnabled, showView } from "./ui/views";
-import { disposeActiveHandler, openWithHandler } from "./core/handler-registry";
+import { activeHandlerId, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler } from "./core/handler-registry";
 import { registerFormatHandlers } from "./handlers/index";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
@@ -1438,6 +1439,22 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   if (node.kind === "file" && getHandlerKind(node) !== "text") void loadAnnotationsForNode(node);
   showView("loading");
   renderTree();
+  if (node.kind === "file" && hasHandler(node.extension)) {
+    try {
+      if (await openWithHandler(node, config)) {
+        updateHeader();
+        renderTree();
+        return;
+      }
+    } catch (error) {
+      statusModeElement.textContent = "加载失败";
+      statusInfoElement.textContent = commandFailure(error).code || "HANDLER_ERROR";
+      showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
+      updateHeader();
+      showToast(failureMessage(error), true);
+      return;
+    }
+  }
   const handler = getHandlerKind(node);
   if (handler !== "text") {
     if (handler === "xlsx" || handler === "pdf" || handler === "docx") {
@@ -1453,19 +1470,6 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
         updateHeader();
         showToast(failure.message || "格式加载失败。", true);
       }
-      return;
-    }
-    try {
-      if (await openWithHandler(node, config)) {
-        updateHeader();
-        renderTree();
-        return;
-      }
-    } catch (error) {
-      statusModeElement.textContent = "加载失败";
-      statusInfoElement.textContent = commandFailure(error).code || "HANDLER_ERROR";
-      showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
-      showToast(failureMessage(error), true);
       return;
     }
     statusModeElement.textContent = "只读预览";
@@ -1593,6 +1597,11 @@ function findNextMatch(direction: 1 | -1): void {
 }
 
 function openFindBar(replaceMode: boolean): void {
+  if (activeHandlerId() === "csv") {
+    csvSearchInput.focus();
+    csvSearchInput.select();
+    return;
+  }
   if (!findSupported()) {
     showToast("当前视图不支持源码查找/替换。", true);
     return;
@@ -1657,6 +1666,24 @@ function markDirty(): void {
 
 async function saveCurrent(): Promise<void> {
   if (!activeNode) return;
+  if (activeHandlerId() === "csv") {
+    statusInfoElement.textContent = "保存中…";
+    try {
+      const metadata = await saveActiveHandler();
+      if (metadata) {
+        activeNode.size = metadata.size;
+        activeNode.modifiedTime = metadata.modifiedTime;
+        activeNode.dirty = false;
+        updateHeader();
+        renderTree();
+        showToast(`已保存 ${activeNode.name}`);
+      }
+    } catch (error) {
+      const failure = commandFailure(error);
+      showToast(failure.code === "EXTERNAL_MODIFICATION" ? "文件已被其他程序修改，请重新加载后再保存。" : failure.message || "保存失败。", true);
+    }
+    return;
+  }
   const handler = getHandlerKind(activeNode);
   if (handler === "xlsx" && activeBinarySession) {
     statusInfoElement.textContent = "保存中…";

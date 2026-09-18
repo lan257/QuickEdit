@@ -53,6 +53,16 @@
               <button id="annotationBubble" class="annotation-bubble hidden" type="button">+ 批注</button>
               <div id="markdownPreviewPane" class="markdown-preview-pane hidden"><article id="markdownPreview" class="markdown-preview"></article></div>
               <div id="htmlPreviewPane" class="html-preview-pane hidden"><iframe id="htmlPreviewFrame" class="html-preview-frame" title="HTML 预览" sandbox=""></iframe></div>
+              <div id="csvPane" class="format-pane hidden">
+                <div class="format-toolbar csv-toolbar">
+                  <span id="csvMeta" class="format-meta">CSV</span>
+                  <div class="csv-controls">
+                    <input id="csvSearchInput" class="csv-search" type="search" placeholder="查找单元格" aria-label="查找单元格" />
+                    <span id="csvSearchStatus" class="csv-search-status"></span>
+                  </div>
+                </div>
+                <div id="csvViewport" class="csv-viewport"></div>
+              </div>
               <div id="excelPane" class="format-pane hidden">
                 <div class="format-toolbar"><div id="sheetTabs" class="sheet-tabs"></div><span id="excelMeta" class="format-meta"></span></div>
                 <div id="excelTableWrap" class="excel-table-wrap"></div>
