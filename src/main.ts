@@ -37,15 +37,62 @@ import { highlightPreviewAnnotations, mapRenderedQuoteToSource } from "./annotat
 import { AnnotationComposer, type ComposerContext } from "./annotations/ui/annotation-composer";
 import { renderAnnotationPanel } from "./annotations/ui/annotation-panel";
 import type { AnnotationEntry, ResolvedAnnotation, TextRange } from "./annotations/types";
-
-type NodeKind = "docs" | "workspace" | "folder" | "file";
-type HandlerKind = "text" | "xlsx" | "pdf" | "docx" | "future";
-type MarkdownViewMode = "edit" | "preview";
-type TreeSortMode = "files-first" | "folders-first" | "name-desc" | "modified-desc";
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[character] || character));
-}
+import {
+  fallbackConfig,
+  type BinarySession,
+  type HandlerKind,
+  type FileMetadata,
+  type MarkdownViewMode,
+  type MenuItem,
+  type AppConfig,
+  type TerminalContext,
+  type TerminalExitEvent,
+  type TerminalOutputEvent,
+  type TerminalSession,
+  type TextDocument,
+  type TextSession,
+  type ThemeMode,
+  type TreeNode,
+  type TreeSortMode,
+  type WorkspaceState,
+} from "./core/types";
+import {
+  basename,
+  commandFailure,
+  countFiles,
+  escapeHtml,
+  failureMessage,
+  formatCreatedTime,
+  formatMeta,
+  formatModifiedTime,
+  hasTauriRuntime,
+  nextId,
+  samePath,
+} from "./core/format";
+import {
+  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docxContentElement, docxPaneElement,
+  editorEncodingElement, editorFileLabelElement, emptyViewElement, excelMetaElement, excelPaneElement, excelTableWrapElement,
+  fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
+  findStatusElement, folderCopyPathButton, folderInfoCountElement, folderInfoCreatedElement, folderInfoKindElement,
+  folderInfoLocationElement, folderInfoModifiedElement, folderInfoNameElement, folderInfoPaneElement, folderInfoTitleElement,
+  folderTerminalButton, loadingViewElement, logoButton, markdownEditButton, markdownModeBarElement, markdownPreviewButton,
+  markdownPreviewElement, markdownPreviewPaneElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
+  nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
+  noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
+  noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement, pdfCanvasWrapElement, pdfPageLabelElement,
+  pdfPaneElement, recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput,
+  runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
+  settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
+  statusModeElement, statusPathElement, terminalAddButton, terminalCloseButton, terminalHostElement,
+  terminalListElement, terminalPanelElement, terminalResizeHandle, terminalRestartButton, terminalShellSelect,
+  terminalStatusElement, terminalTitleElement, terminalToggleButton, textEditorHostElement, textExtensionsInput,
+  textPaneElement, themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
+  treeElement, treeSearchInput, treeSortSelect, unsupportedMessageElement, unsupportedTitleElement, unsupportedViewElement,
+  winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
+  helpContentElement, helpOverlayElement, confirmCloseInput, annotationEnabledInput, closeNotesButton, helpCloseButton,
+} from "./ui/elements";
+import { hideToast, showToast } from "./ui/toast";
+import { hideMenu, showMenu } from "./ui/context-menu";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
 markdownRenderer.renderer.rules.image = (tokens, index) => {
@@ -54,178 +101,6 @@ markdownRenderer.renderer.rules.image = (tokens, index) => {
 };
 markdownRenderer.renderer.rules.link_open = () => "";
 markdownRenderer.renderer.rules.link_close = () => "";
-
-interface FileMetadata {
-  path: string;
-  name: string;
-  extension: string;
-  size: number;
-  modifiedTime: number;
-  createdTime: number;
-  isDirectory: boolean;
-}
-
-interface TreeNode {
-  id: string;
-  kind: NodeKind;
-  name: string;
-  path: string;
-  extension: string;
-  size: number;
-  modifiedTime: number;
-  createdTime: number;
-  expanded: boolean;
-  childrenLoaded: boolean;
-  loading: boolean;
-  children: TreeNode[];
-  dirty: boolean;
-  content?: string;
-  encoding?: string;
-}
-
-interface TextDocument {
-  path: string;
-  content: string;
-  encoding: string;
-  size: number;
-  modifiedTime: number;
-}
-
-type ThemeMode = "light" | "dark";
-
-interface AppConfig {
-  version: number;
-  editor: {
-    maxTextFileSizeMB: number;
-    confirmBeforeCloseUnsaved: boolean;
-  };
-  handlers: {
-    text: { enabled: boolean; extensions: string[] };
-    spreadsheet: { enabled: boolean; extensions: string[] };
-    pdf: { enabled: boolean; extensions: string[] };
-    docx: { enabled: boolean; extensions: string[] };
-  };
-  annotations: {
-    enabled: boolean;
-    extension: string;
-  };
-  workspace: {
-    restoreLastSession: boolean;
-  };
-  shell: {
-    contextMenu: boolean;
-    openWith: boolean;
-  };
-  appearance: {
-    theme: ThemeMode;
-  };
-}
-
-interface WorkspaceReference {
-  name: string;
-  path: string;
-  expanded: boolean;
-}
-
-interface WorkspaceState {
-  version: number;
-  docsFiles: string[];
-  workspaces: WorkspaceReference[];
-}
-
-interface TextSession {
-  path: string;
-  encoding: string;
-  size: number;
-  modifiedTime: number;
-}
-
-interface BinarySession {
-  path: string;
-  size: number;
-  modifiedTime: number;
-  bytes: Uint8Array;
-}
-
-type TerminalShell = "powershell" | "cmd";
-
-interface TerminalContext {
-  cwd?: string;
-  scopeKey: string;
-  scopeLabel: string;
-}
-
-interface TerminalSession {
-  id: string;
-  processId: string | null;
-  title: string;
-  scopeKey: string;
-  scopeLabel: string;
-  cwd?: string;
-  shell: TerminalShell;
-  terminal: Terminal;
-  fitAddon: FitAddon;
-  host: HTMLDivElement;
-  running: boolean;
-  spawning: boolean;
-  status: string;
-}
-
-interface TerminalOutputEvent {
-  sessionId: string;
-  data: string;
-}
-
-interface TerminalExitEvent {
-  sessionId: string;
-}
-
-interface CommandFailure {
-  code?: string;
-  message?: string;
-}
-
-interface MenuItem {
-  label: string;
-  action?: () => void;
-  danger?: boolean;
-  disabled?: boolean;
-  separator?: boolean;
-}
-
-const fallbackConfig: AppConfig = {
-  version: 1,
-  editor: {
-    maxTextFileSizeMB: 1,
-    confirmBeforeCloseUnsaved: true,
-  },
-  handlers: {
-    text: {
-      enabled: true,
-      extensions: [
-        ".txt", ".md", ".json", ".xml", ".yaml", ".yml", ".ini", ".log", ".csv",
-        ".sql", ".py", ".js", ".ts", ".cs", ".java", ".cpp", ".html", ".css",
-      ],
-    },
-    spreadsheet: { enabled: true, extensions: [".xlsx"] },
-    pdf: { enabled: true, extensions: [".pdf"] },
-    docx: { enabled: true, extensions: [".docx"] },
-  },
-  annotations: { enabled: true, extension: ".qnote" },
-  workspace: { restoreLastSession: true },
-  shell: { contextMenu: true, openWith: true },
-  appearance: { theme: "light" },
-};
-
-const $ = <T extends HTMLElement>(selector: string): T => {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`页面缺少元素: ${selector}`);
-  return element;
-};
-
-function hasTauriRuntime(): boolean {
-  return "__TAURI_INTERNALS__" in window;
-}
 
 function updateThemeCards(mode: ThemeMode): void {
   themeLightButton.classList.toggle("active", mode === "light");
@@ -247,126 +122,8 @@ function requestTheme(mode: "light" | "dark" | "system"): void {
   applyTheme("light");
 }
 
-const treeElement = $("#tree");
-const fileCountElement = $("#fileCount");
-const runtimeHintElement = $("#runtimeHint");
-const docNameElement = $("#docName");
-const modePillElement = $("#modePill");
-const docMetaElement = $("#docMeta");
-const emptyViewElement = $("#emptyView");
-const loadingViewElement = $("#loadingView");
-const folderInfoPaneElement = $("#folderInfoPane");
-const folderInfoTitleElement = $("#folderInfoTitle");
-const folderInfoKindElement = $("#folderInfoKind");
-const folderInfoNameElement = $("#folderInfoName");
-const folderInfoModifiedElement = $("#folderInfoModified");
-const folderInfoCreatedElement = $("#folderInfoCreated");
-const folderInfoLocationElement = $("#folderInfoLocation");
-const folderInfoCountElement = $("#folderInfoCount");
-const folderTerminalButton = $("#folderTerminalButton") as HTMLButtonElement;
-const folderCopyPathButton = $("#folderCopyPathButton") as HTMLButtonElement;
-const textPaneElement = $("#textPane");
-const excelPaneElement = $("#excelPane");
-const sheetTabsElement = $("#sheetTabs");
-const excelMetaElement = $("#excelMeta");
-const excelTableWrapElement = $("#excelTableWrap");
-const pdfPaneElement = $("#pdfPane");
-const pdfPageLabelElement = $("#pdfPageLabel");
-const pdfCanvasWrapElement = $("#pdfCanvasWrap");
-const docxPaneElement = $("#docxPane");
-const docxContentElement = $("#docxContent");
-const unsupportedViewElement = $("#unsupportedView");
-const unsupportedTitleElement = $("#unsupportedTitle");
-const unsupportedMessageElement = $("#unsupportedMessage");
-const textEditorHostElement = $("#textEditorHost");
-const contentElement = $<HTMLElement>(".content");
-const annotationBubbleElement = $("#annotationBubble") as HTMLButtonElement;
-const markdownModeBarElement = $("#markdownModeBar");
-const markdownPreviewPaneElement = $("#markdownPreviewPane");
-const markdownPreviewElement = $("#markdownPreview");
-const markdownEditButton = $("#markdownEditButton") as HTMLButtonElement;
-const markdownPreviewButton = $("#markdownPreviewButton") as HTMLButtonElement;
-const findBarElement = $("#findBar");
-const findInputElement = $("#findInput") as HTMLInputElement;
-const replaceInputElement = $("#replaceInput") as HTMLInputElement;
-const findCaseInput = $("#findCaseInput") as HTMLInputElement;
-const findStatusElement = $("#findStatus");
-const findPrevButton = $("#findPrevButton") as HTMLButtonElement;
-const findNextButton = $("#findNextButton") as HTMLButtonElement;
-const replaceButton = $("#replaceButton") as HTMLButtonElement;
-const replaceAllButton = $("#replaceAllButton") as HTMLButtonElement;
-const findCloseButton = $("#findCloseButton") as HTMLButtonElement;
-const editorFileLabelElement = $("#editorFileLabel");
-const editorEncodingElement = $("#editorEncoding");
-const statusModeElement = $("#statusMode");
-const statusInfoElement = $("#statusInfo");
-const statusCursorElement = $("#statusCursor");
-const statusPathElement = $("#statusPath");
-const winControlsElement = $("#winControls");
-const winMinimizeButton = $("#winMinimize") as HTMLButtonElement;
-const winMaximizeButton = $("#winMaximize") as HTMLButtonElement;
-const winCloseButton = $("#winClose") as HTMLButtonElement;
-const notesButton = $("#notesBtn") as HTMLButtonElement;
-const noteCountElement = $("#noteCount");
-const workareaElement = $("#workarea");
-const notesPanelElement = $("#notesPanel");
-const noteFileLabelElement = $("#noteFileLabel");
-const notesListElement = $("#notesList");
-const notePanelCountElement = $("#notePanelCount");
-const addGeneralNoteButton = $("#addGeneralNoteButton") as HTMLButtonElement;
-const noteFilterAllButton = $("#noteFilterAllButton") as HTMLButtonElement;
-const noteFilterOpenButton = $("#noteFilterOpenButton") as HTMLButtonElement;
-const noteTagFilterClearButton = $("#noteTagFilterClearButton") as HTMLButtonElement;
-const recoverNotesButton = $("#recoverNotesButton") as HTMLButtonElement;
-const treeSearchInput = $("#treeSearchInput") as HTMLInputElement;
-const treeSortSelect = $("#treeSortSelect") as HTMLSelectElement;
-const closeNotesButton = $("#closeNotesButton") as HTMLButtonElement;
-const logoButton = $("#logoButton") as HTMLButtonElement;
-const menuElement = $("#menu");
-const nameOverlayElement = $("#nameOverlay");
-const nameTitleElement = $("#nameTitle");
-const nameLabelElement = $("#nameLabel");
-const nameInputElement = $("#nameInput") as HTMLInputElement;
-const nameHintElement = $("#nameHint");
-const nameCloseButton = $("#nameClose") as HTMLButtonElement;
-const nameCancelButton = $("#nameCancel") as HTMLButtonElement;
-const nameOkButton = $("#nameOk") as HTMLButtonElement;
-const settingsOverlayElement = $("#settingsOverlay");
-const helpOverlayElement = $("#helpOverlay");
-const helpContentElement = $("#helpContent");
-const helpCloseButton = $("#helpClose") as HTMLButtonElement;
-const settingsCloseButton = $("#settingsClose") as HTMLButtonElement;
-const settingsCancelButton = $("#settingsCancel") as HTMLButtonElement;
-const settingsSaveButton = $("#settingsSave") as HTMLButtonElement;
-const textExtensionsInput = $("#textExtensionsInput") as HTMLTextAreaElement;
-const maxTextSizeInput = $("#maxTextSizeInput") as HTMLInputElement;
-const confirmCloseInput = $("#confirmCloseInput") as HTMLInputElement;
-const annotationEnabledInput = $("#annotationEnabledInput") as HTMLInputElement;
-const restoreSessionInput = $("#restoreSessionInput") as HTMLInputElement;
-const shellContextMenuInput = $("#shellContextMenuInput") as HTMLInputElement;
-const shellOpenWithInput = $("#shellOpenWithInput") as HTMLInputElement;
-const themeSelect = $("#themeSelect") as HTMLSelectElement;
-const themeLightButton = $("#themeLightButton") as HTMLButtonElement;
-const themeDarkButton = $("#themeDarkButton") as HTMLButtonElement;
-const themeSystemButton = $("#themeSystemButton") as HTMLButtonElement;
-const settingsResetDefaultsButton = $("#settingsResetDefaults") as HTMLButtonElement;
-const toastElement = $("#toast");
-const toastMessageElement = $("#toastMessage");
-const toastCloseButton = $("#toastClose") as HTMLButtonElement;
-const terminalPanelElement = $("#terminalPanel");
-const terminalHostElement = $("#terminalHost");
-const terminalTitleElement = $("#terminalTitle");
-const terminalListElement = $("#terminalList");
-const terminalAddButton = $("#terminalAddButton") as HTMLButtonElement;
-const terminalResizeHandle = $("#terminalResizeHandle");
-const terminalShellSelect = $("#terminalShellSelect") as HTMLSelectElement;
-const terminalStatusElement = $("#terminalStatus");
-const terminalRestartButton = $("#terminalRestartButton") as HTMLButtonElement;
-const terminalCloseButton = $("#terminalCloseButton") as HTMLButtonElement;
-const terminalToggleButton = $("#terminalToggle") as HTMLButtonElement;
 
 let config = fallbackConfig;
-let nodeSequence = 0;
 let roots: TreeNode[] = [];
 let activeNode: TreeNode | null = null;
 let activeSession: TextSession | null = null;
@@ -401,10 +158,6 @@ let nameCallback: ((name: string) => void) | null = null;
 const docsSection = createContainer("docs", "文档", "");
 roots = [docsSection];
 
-function nextId(): string {
-  nodeSequence += 1;
-  return `node-${nodeSequence}`;
-}
 
 function createContainer(kind: "docs" | "workspace" | "folder", name: string, path: string): TreeNode {
   return {
@@ -459,26 +212,9 @@ function getHandlerKind(node: TreeNode): HandlerKind {
   return "future";
 }
 
-function basename(path: string): string {
-  const normalized = path.replace(/[\\/]+$/, "");
-  const parts = normalized.split(/[\\/]/);
-  return parts[parts.length - 1] || path;
-}
 
-function samePath(left: string, right: string): boolean {
-  return left.toLowerCase() === right.toLowerCase();
-}
 
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
 
-function formatMeta(node: TreeNode): string {
-  if (node.kind !== "file") return node.path;
-  return `${node.extension || "无扩展名"} · ${formatBytes(node.size)} · ${node.path}`;
-}
 
 async function copyPath(path: string): Promise<void> {
   if (!path) return;
@@ -507,85 +243,11 @@ async function copyActivePath(): Promise<void> {
   if (activeNode?.path) await copyPath(activeNode.path);
 }
 
-function formatModifiedTime(value: number): string {
-  if (!value) return "修改时间未知";
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
 
-function formatCreatedTime(value: number): string {
-  if (!value) return "创建时间未知";
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
 
-function countFiles(node: TreeNode): number {
-  return node.children.reduce((count, child) => count + (child.kind === "file" ? 1 : countFiles(child)), 0);
-}
 
-function commandFailure(error: unknown): CommandFailure {
-  if (typeof error === "object" && error !== null) {
-    const value = error as CommandFailure;
-    return { code: value.code, message: value.message };
-  }
-  return { message: typeof error === "string" ? error : "本地文件操作失败。" };
-}
 
-function failureMessage(error: unknown): string {
-  return commandFailure(error).message || "本地文件操作失败。";
-}
 
-let toastTimer = 0;
-function showToast(message: string, isError = false): void {
-  toastMessageElement.textContent = message;
-  toastElement.classList.toggle("error", isError);
-  toastElement.classList.remove("hidden");
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(hideToast, 3000);
-}
-
-function hideToast(): void {
-  window.clearTimeout(toastTimer);
-  toastElement.classList.add("hidden");
-}
-
-function hideMenu(): void {
-  menuElement.classList.add("hidden");
-}
-
-function showMenu(items: MenuItem[], x: number, y: number): void {
-  menuElement.innerHTML = "";
-  for (const item of items) {
-    if (item.separator) {
-      const separator = document.createElement("div");
-      separator.className = "menu-separator";
-      menuElement.append(separator);
-      continue;
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = item.label;
-    button.disabled = item.disabled ?? false;
-    if (item.danger) button.classList.add("danger");
-    button.addEventListener("click", () => {
-      hideMenu();
-      item.action?.();
-    });
-    menuElement.append(button);
-  }
-  menuElement.classList.remove("hidden");
-  const width = menuElement.offsetWidth;
-  const height = menuElement.offsetHeight;
-  menuElement.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
-  menuElement.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
-  window.setTimeout(() => {
-    const close = (event: MouseEvent) => {
-      if (!menuElement.contains(event.target as Node)) {
-        hideMenu();
-        document.removeEventListener("click", close, true);
-      }
-    };
-    document.addEventListener("click", close, true);
-  }, 0);
-}
 
 function iconFor(node: TreeNode): { className: string; label: string } {
   if (node.kind === "workspace") return { className: "workspace", label: "WS" };
