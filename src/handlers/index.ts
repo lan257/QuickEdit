@@ -13,6 +13,22 @@ export function registerFormatHandlers(): void {
     extensions: [".csv"],
     load: async () => (await import("./csv/csv-handler")).createCsvHandler(),
   });
+  // V1 已有能力迁入 Registry，保持“未打开该格式就不加载重型依赖”。
+  registerHandler({
+    id: "xlsx",
+    extensions: [".xlsx"],
+    load: async () => (await import("./xlsx/xlsx-handler")).createXlsxHandler(),
+  });
+  registerHandler({
+    id: "pdf",
+    extensions: [".pdf"],
+    load: async () => (await import("./pdf/pdf-handler")).createPdfHandler(),
+  });
+  registerHandler({
+    id: "docx",
+    extensions: [".docx"],
+    load: async () => (await import("./docx/docx-handler")).createDocxHandler(),
+  });
   registerHandler({
     id: "pptx",
     extensions: [".pptx"],

@@ -6,8 +6,6 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
 import MarkdownIt from "markdown-it";
 import configHelpMarkdown from "./QuickEdit_Config_Help.md?raw";
-import type * as XLSX from "xlsx";
-import type * as PdfJs from "pdfjs-dist";
 import { TextEditor } from "./editor/text-editor";
 import {
   annotationDamaged,
@@ -37,7 +35,6 @@ import { renderAnnotationPanel } from "./annotations/ui/annotation-panel";
 import type { AnnotationEntry, ResolvedAnnotation, TextRange } from "./annotations/types";
 import {
   fallbackConfig,
-  type BinarySession,
   type HandlerKind,
   type FileMetadata,
   type MarkdownViewMode,
@@ -69,19 +66,18 @@ import {
   samePath,
 } from "./core/format";
 import {
-  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docRunButton, docxContentElement,
-  editorEncodingElement, editorFileLabelElement, excelMetaElement, excelTableWrapElement,
+  addGeneralNoteButton, annotationBubbleElement, docMetaElement, docNameElement, docRunButton,
+  editorEncodingElement, editorFileLabelElement,
   fileCountElement, findBarElement, findCaseInput, findCloseButton, findInputElement, findNextButton, findPrevButton,
   findStatusElement, logoButton, markdownBarLabelElement, markdownEditButton, markdownPreviewButton,
   markdownPreviewElement, htmlPreviewFrameElement, maxTextSizeInput, modePillElement, nameCancelButton, nameCloseButton,
   nameHintElement, nameInputElement, nameLabelElement, nameOkButton, nameOverlayElement, nameTitleElement,
   noteCountElement, noteFileLabelElement, noteFilterAllButton, noteFilterOpenButton, notePanelCountElement,
-  noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement, pdfCanvasWrapElement, pdfPageLabelElement,
+  noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement,
   recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput, runnersInput,
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
-  settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sheetTabsElement, statusCursorElement, statusInfoElement,
+  settingsSaveButton, shellContextMenuInput, shellOpenWithInput, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
-  csvSearchInput,
   themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
   treeElement, treeSearchInput, treeSortSelect,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
@@ -91,7 +87,7 @@ import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
 import { renderInfoView, type InfoViewAction, type InfoViewKind, type InfoViewMetadataItem } from "./ui/info-view";
 import { setMarkdownBarEnabled, showView } from "./ui/views";
-import { activeHandlerId, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler } from "./core/handler-registry";
+import { activeDocumentHandler, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler, type HandlerBridge } from "./core/handler-registry";
 import { registerFormatHandlers } from "./handlers/index";
 import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
 import { renderHtmlPreviewDocument } from "./features/html-preview/html-preview";
@@ -138,17 +134,6 @@ let config = fallbackConfig;
 let roots: TreeNode[] = [];
 let activeNode: TreeNode | null = null;
 let activeSession: TextSession | null = null;
-let activeBinarySession: BinarySession | null = null;
-let xlsxModule: typeof import("xlsx") | null = null;
-let pdfjsModule: typeof import("pdfjs-dist") | null = null;
-let mammothModule: typeof import("mammoth/mammoth.browser") | null = null;
-let activeWorkbook: XLSX.WorkBook | null = null;
-let activeSheetName = "";
-let activePdfDocument: PdfJs.PDFDocumentProxy | null = null;
-let activePdfPage = 1;
-let pdfPageObserver: IntersectionObserver | null = null;
-const pdfPageHosts = new Map<number, HTMLElement>();
-const pdfPageRendering = new Set<number>();
 let markdownViewMode: MarkdownViewMode = "edit";
 let markdownContentRevision = 0;
 let markdownPreviewRevision = -1;
@@ -160,7 +145,6 @@ let activeAnnotationId: string | null = null;
 let annotationLoading = false;
 let notesFilter: "all" | "open" = "all";
 let notesTagFilter: string | null = null;
-let activeCellLocator: { sheet: string; cell: string } | null = null;
 let textEditor: TextEditor | null = null;
 let composer: AnnotationComposer | null = null;
 let treeFilter = "";
@@ -169,6 +153,22 @@ let nameCallback: ((name: string) => void) | null = null;
 
 const docsSection = createContainer("docs", "文档", "");
 roots = [docsSection];
+
+// 懒加载 Handler 不能反向 import 控制器，需要回主界面的动作统一走这座桥。
+const handlerBridge: HandlerBridge = {
+  markDirty: () => {
+    if (!activeNode) return;
+    activeNode.dirty = true;
+    renderTree();
+    statusInfoElement.textContent = "已修改 · 未保存";
+  },
+  status: (mode, info) => {
+    statusModeElement.textContent = mode;
+    statusInfoElement.textContent = info;
+  },
+  refreshCursor: () => updateCursorStatus(),
+  revealAnnotation: (id) => activateAnnotation(id, { fromMarker: true }),
+};
 
 
 function createContainer(kind: "docs" | "workspace" | "folder", name: string, path: string): TreeNode {
@@ -404,19 +404,9 @@ function selectContainer(node: TreeNode): void {
   closeFindBar();
   activeNode = node;
   activeSession = null;
-  activeBinarySession = null;
-  activeWorkbook = null;
-  activeSheetName = "";
-  activePdfDocument = null;
-  pdfPageObserver?.disconnect();
-  pdfPageObserver = null;
-  pdfPageHosts.clear();
-  pdfPageRendering.clear();
-  activePdfPage = 1;
   resetAnnotations();
   activeAnnotationId = null;
   notesTagFilter = null;
-  activeCellLocator = null;
   closeNotesPanel();
   showView("folder");
   renderFolderInfo(node);
@@ -985,12 +975,12 @@ function openContextComposer(at?: { x: number; y: number }): void {
       return;
     }
   }
-  if (handler === "xlsx" && activeCellLocator) {
-    openComposerForContext({ scopeHint: `单元格 ${activeCellLocator.sheet}!${activeCellLocator.cell}` }, annotationSubmit("cell", { ...activeCellLocator }, null), at);
-    return;
-  }
-  if (handler === "pdf" && activePdfDocument) {
-    openComposerForContext({ scopeHint: `第 ${activePdfPage} 页` }, annotationSubmit("page", { page: activePdfPage }, null), at);
+  const target = activeDocumentHandler()?.annotationTarget?.();
+  if (target) {
+    const submit = target.scope === "cell"
+      ? annotationSubmit("cell", target.locator, null)
+      : annotationSubmit("page", target.locator, null);
+    openComposerForContext({ scopeHint: target.scopeHint }, submit, at);
     return;
   }
   openComposerForContext({ scopeHint: "文件级批注（关联全文）" }, annotationSubmit("general", null, null), at);
@@ -1025,25 +1015,6 @@ async function deleteAnnotation(id: string): Promise<void> {
   if (persisted) showToast("已删除批注");
 }
 
-function cellAnnotations(sheet: string, cell: string): ResolvedAnnotation[] {
-  return resolvedAnnotations().filter((item) => {
-    const locator = item.entry.locator;
-    return item.entry.scope === "cell" && Boolean(locator && "sheet" in locator && locator.sheet === sheet && locator.cell === cell);
-  });
-}
-
-function pageAnnotations(page: number): ResolvedAnnotation[] {
-  return resolvedAnnotations().filter((item) => {
-    const locator = item.entry.locator;
-    return item.entry.scope === "page" && Boolean(locator && "page" in locator && locator.page === page);
-  });
-}
-
-function focusAnnotationsFor(items: ResolvedAnnotation[]): void {
-  if (items.length === 0) return;
-  activateAnnotation(items[0].entry.id, { fromMarker: true });
-}
-
 function focusAnnotationTarget(item: ResolvedAnnotation): void {
   const { entry, resolution, range } = item;
   if (entry.scope === "text-range") {
@@ -1058,27 +1029,9 @@ function focusAnnotationTarget(item: ResolvedAnnotation): void {
   }
   const locator = entry.locator;
   if (!locator) return;
-  if (entry.scope === "page" && "page" in locator && activePdfDocument) {
-    const page = Math.max(1, Math.min(locator.page, activePdfDocument.numPages));
-    activePdfPage = page;
-    updatePdfPageLabel();
-    const host = pdfPageHosts.get(page);
-    if (host) {
-      host.scrollIntoView({ behavior: "smooth", block: "start" });
-      void renderPdfPageInto(page, host);
-    }
-    return;
-  }
-  if (entry.scope === "cell" && "sheet" in locator && activeWorkbook) {
-    const cellLocator = { sheet: locator.sheet, cell: locator.cell };
-    activeSheetName = cellLocator.sheet;
-    activeCellLocator = cellLocator;
-    renderWorkbook();
-    window.setTimeout(() => {
-      const cell = document.querySelector(`[data-sheet="${CSS.escape(cellLocator.sheet)}"][data-cell="${CSS.escape(cellLocator.cell)}"]`) as HTMLElement | null;
-      cell?.scrollIntoView({ block: "center", inline: "center" });
-      cell?.focus();
-    }, 0);
+  if (entry.scope === "page" || entry.scope === "cell") {
+    const { sheet, cell, page } = locator as { sheet?: string; cell?: string; page?: number };
+    activeDocumentHandler()?.locate?.({ sheet, cell, page });
   }
 }
 
@@ -1154,276 +1107,6 @@ function toggleNotes(): void {
   notesPanelElement.classList.toggle("hidden", !open);
 }
 
-function markBinaryDirty(): void {
-  if (!activeNode || !activeBinarySession) return;
-  activeNode.dirty = true;
-  renderTree();
-  statusInfoElement.textContent = "已修改 · 未保存";
-}
-
-function sheetColumnName(column: number): string {
-  let value = column + 1;
-  let result = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    result = String.fromCharCode(65 + remainder) + result;
-    value = Math.floor((value - 1) / 26);
-  }
-  return result;
-}
-
-function renderWorkbook(): void {
-  if (!activeWorkbook || !xlsxModule) return;
-  const xlsx = xlsxModule;
-  sheetTabsElement.innerHTML = "";
-  for (const name of activeWorkbook.SheetNames) {
-    const tab = document.createElement("button");
-    tab.type = "button";
-    tab.className = `sheet-tab${name === activeSheetName ? " active" : ""}`;
-    tab.textContent = name;
-    tab.addEventListener("click", () => {
-      activeSheetName = name;
-      activeCellLocator = null;
-      renderWorkbook();
-    });
-    sheetTabsElement.append(tab);
-  }
-  const sheet = activeWorkbook.Sheets[activeSheetName];
-  const rows = sheet ? xlsx.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" }) : [];
-  const rowCount = Math.min(Math.max(rows.length, 1), 200);
-  const colCount = Math.min(Math.max(...rows.map((row) => row.length), 1), 30);
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  const headRow = document.createElement("tr");
-  const corner = document.createElement("th");
-  corner.textContent = "#";
-  headRow.append(corner);
-  for (let column = 0; column < colCount; column += 1) {
-    const th = document.createElement("th");
-    th.textContent = sheetColumnName(column);
-    headRow.append(th);
-  }
-  thead.append(headRow);
-  table.append(thead);
-  const tbody = document.createElement("tbody");
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-    const tr = document.createElement("tr");
-    const rowNumber = document.createElement("th");
-    rowNumber.textContent = String(rowIndex + 1);
-    tr.append(rowNumber);
-    const row = rows[rowIndex] || [];
-    for (let column = 0; column < colCount; column += 1) {
-      const td = document.createElement("td");
-      td.contentEditable = "true";
-      td.textContent = String(row[column] ?? "");
-      const address = xlsx.utils.encode_cell({ r: rowIndex, c: column });
-      td.dataset.sheet = activeSheetName;
-      td.dataset.cell = address;
-      const noteCount = cellAnnotations(activeSheetName, address).length;
-      if (noteCount > 0) td.dataset.noteLabel = noteCount > 1 ? `●${noteCount}` : "●";
-      const selectCell = () => {
-        activeCellLocator = { sheet: activeSheetName, cell: address };
-        updateCursorStatus();
-      };
-      td.addEventListener("click", (event) => {
-        selectCell();
-        if (noteCount === 0) return;
-        const rect = td.getBoundingClientRect();
-        if (event.clientX >= rect.right - 22 && event.clientY <= rect.top + 18) {
-          focusAnnotationsFor(cellAnnotations(activeSheetName, address));
-        }
-      });
-      td.addEventListener("focus", selectCell);
-      td.addEventListener("contextmenu", selectCell);
-      td.addEventListener("input", () => {
-        sheet[address] = { t: "s", v: td.textContent || "" };
-        if (!sheet["!ref"]) sheet["!ref"] = "A1";
-        markBinaryDirty();
-      });
-      tr.append(td);
-    }
-    tbody.append(tr);
-  }
-  table.append(tbody);
-  excelTableWrapElement.replaceChildren(table);
-  excelMetaElement.textContent = `${activeWorkbook.SheetNames.length} 个工作表 · ${activeSheetName}`;
-}
-
-// Update cell marker badges in place (no table rebuild, so editing focus survives annotation changes).
-function refreshWorkbookMarkers(): void {
-  if (!activeWorkbook) return;
-  for (const td of Array.from(excelTableWrapElement.querySelectorAll<HTMLElement>("td[data-cell]"))) {
-    const cell = td.dataset.cell || "";
-    const count = cellAnnotations(activeSheetName, cell).length;
-    if (count > 0) td.dataset.noteLabel = count > 1 ? `●${count}` : "●";
-    else delete td.dataset.noteLabel;
-  }
-}
-
-async function saveSpreadsheet(): Promise<void> {
-  if (!activeNode || !activeBinarySession || !activeWorkbook || !xlsxModule) return;
-  const output = xlsxModule.write(activeWorkbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
-  const bytes = Array.from(new Uint8Array(output));
-  const metadata = await invoke<FileMetadata>("save_binary_file", {
-    path: activeBinarySession.path,
-    bytes,
-    expectedSize: activeBinarySession.size,
-    expectedModifiedTime: activeBinarySession.modifiedTime,
-  });
-  activeBinarySession = { ...activeBinarySession, size: metadata.size, modifiedTime: metadata.modifiedTime, bytes: new Uint8Array(bytes) };
-  if (activeNode) {
-    activeNode.size = metadata.size;
-    activeNode.modifiedTime = metadata.modifiedTime;
-    activeNode.dirty = false;
-  }
-  renderTree();
-  updateHeader();
-  statusInfoElement.textContent = "已保存";
-  showToast(`已保存 ${activeNode.name}`);
-}
-
-function updatePdfPageLabel(): void {
-  if (!activePdfDocument) return;
-  pdfPageLabelElement.textContent = `PDF 连续阅读 · 第 ${activePdfPage} / ${activePdfDocument.numPages} 页`;
-  updateCursorStatus();
-}
-
-function updateActivePdfPageFromScroll(): void {
-  if (!activePdfDocument || pdfPageHosts.size === 0) return;
-  const center = pdfCanvasWrapElement.getBoundingClientRect().top + pdfCanvasWrapElement.clientHeight / 2;
-  let nearest = activePdfPage;
-  let distance = Number.POSITIVE_INFINITY;
-  for (const [pageNumber, host] of pdfPageHosts) {
-    const rect = host.getBoundingClientRect();
-    const hostCenter = rect.top + rect.height / 2;
-    const nextDistance = Math.abs(hostCenter - center);
-    if (nextDistance < distance) {
-      nearest = pageNumber;
-      distance = nextDistance;
-    }
-  }
-  if (nearest !== activePdfPage) {
-    activePdfPage = nearest;
-    updatePdfPageLabel();
-  }
-}
-
-async function renderPdfPageInto(pageNumber: number, host: HTMLElement): Promise<void> {
-  if (!activePdfDocument || pdfPageRendering.has(pageNumber) || host.dataset.rendered === "true") return;
-  pdfPageRendering.add(pageNumber);
-  try {
-    const page = await activePdfDocument.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1.25 });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("无法创建 PDF canvas 上下文。");
-    host.style.minHeight = `${viewport.height + 22}px`;
-    await page.render({ canvas, canvasContext: context, viewport }).promise;
-    const label = document.createElement("div");
-    label.className = "pdf-page-label";
-    label.textContent = `第 ${pageNumber} 页`;
-    host.replaceChildren(label, canvas);
-    host.dataset.rendered = "true";
-    attachPdfPageMarker(pageNumber, host);
-  } finally {
-    pdfPageRendering.delete(pageNumber);
-  }
-}
-
-function attachPdfPageMarker(pageNumber: number, host: HTMLElement): void {
-  const items = pageAnnotations(pageNumber);
-  const existing = host.querySelector<HTMLElement>(".pdf-page-marker");
-  if (items.length === 0) {
-    existing?.remove();
-    return;
-  }
-  const badge = existing ?? (() => {
-    const element = document.createElement("button");
-    element.type = "button";
-    element.className = "pdf-page-marker";
-    element.addEventListener("click", () => focusAnnotationsFor(pageAnnotations(pageNumber)));
-    host.append(element);
-    return element;
-  })();
-  badge.textContent = `●${items.length}`;
-  badge.title = `第 ${pageNumber} 页 · ${items.length} 条批注`;
-}
-
-function refreshPdfPageMarkers(): void {
-  for (const [pageNumber, host] of pdfPageHosts) attachPdfPageMarker(pageNumber, host);
-}
-
-async function renderPdfDocumentContinuous(): Promise<void> {
-  if (!activePdfDocument) return;
-  pdfPageObserver?.disconnect();
-  pdfPageObserver = null;
-  pdfPageHosts.clear();
-  pdfPageRendering.clear();
-  pdfCanvasWrapElement.replaceChildren();
-  for (let pageNumber = 1; pageNumber <= activePdfDocument.numPages; pageNumber += 1) {
-    const host = document.createElement("section");
-    host.className = "pdf-page";
-    host.dataset.page = String(pageNumber);
-    pdfPageHosts.set(pageNumber, host);
-    pdfCanvasWrapElement.append(host);
-  }
-  pdfPageObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const pageNumber = Number((entry.target as HTMLElement).dataset.page);
-      const host = entry.target as HTMLElement;
-      void renderPdfPageInto(pageNumber, host);
-    }
-  }, { root: pdfCanvasWrapElement, rootMargin: "900px 0px" });
-  for (const host of pdfPageHosts.values()) pdfPageObserver.observe(host);
-  activePdfPage = 1;
-  updatePdfPageLabel();
-  refreshPdfPageMarkers();
-  const firstPage = pdfPageHosts.get(1);
-  if (firstPage) await renderPdfPageInto(1, firstPage);
-}
-
-async function openBinaryNode(node: TreeNode, handler: HandlerKind): Promise<void> {
-  const raw = await invoke<number[]>("read_binary_file", { path: node.path });
-  const bytes = new Uint8Array(raw);
-  activeBinarySession = { path: node.path, size: node.size, modifiedTime: node.modifiedTime, bytes };
-  if (handler === "xlsx") {
-    xlsxModule ??= await import("xlsx");
-    activeWorkbook = xlsxModule.read(bytes, { type: "array", cellStyles: true });
-    activeSheetName = activeWorkbook.SheetNames[0] || "Sheet1";
-    renderWorkbook();
-    statusModeElement.textContent = "表格编辑";
-    statusInfoElement.textContent = `${activeWorkbook.SheetNames.length} 个工作表`;
-    showView("xlsx");
-    return;
-  }
-  if (handler === "pdf") {
-    pdfjsModule ??= await import("pdfjs-dist");
-    const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-    pdfjsModule.GlobalWorkerOptions.workerSrc = worker.default;
-    activePdfDocument = await pdfjsModule.getDocument({ data: bytes }).promise;
-    activePdfPage = 1;
-    await renderPdfDocumentContinuous();
-    statusModeElement.textContent = "PDF 阅读";
-    statusInfoElement.textContent = `${activePdfDocument.numPages} 页`;
-    showView("pdf");
-    return;
-  }
-  if (handler === "docx") {
-    mammothModule ??= await import("mammoth/mammoth.browser");
-    const arrayBuffer = bytes.slice().buffer as ArrayBuffer;
-    const result = await mammothModule.convertToHtml({ arrayBuffer });
-    docxContentElement.innerHTML = result.value;
-    statusModeElement.textContent = "DOCX 阅读";
-    statusInfoElement.textContent = "只读";
-    showView("docx");
-    return;
-  }
-  throw new Error("未接入该文件类型的 Handler。");
-}
-
 async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceText?: boolean }): Promise<void> {
   if (options?.forceText) node.forceText = true;
   void disposeActiveHandler();
@@ -1431,15 +1114,6 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   closeComposer();
   activeNode = node;
   activeSession = null;
-  activeBinarySession = null;
-  activeWorkbook = null;
-  activeSheetName = "";
-  activePdfDocument = null;
-  pdfPageObserver?.disconnect();
-  pdfPageObserver = null;
-  pdfPageHosts.clear();
-  pdfPageRendering.clear();
-  activePdfPage = 1;
   markdownViewMode = isMarkdownNode(node) ? (options?.preferEdit ? "edit" : "preview") : "edit";
   setMarkdownBarEnabled(isPreviewableNode(node));
   markdownContentRevision = 0;
@@ -1449,7 +1123,6 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   resetAnnotations();
   activeAnnotationId = null;
   notesTagFilter = null;
-  activeCellLocator = null;
   updateHeader();
   renderAnnotationUi();
   if (node.kind === "file" && getHandlerKind(node) !== "text") void loadAnnotationsForNode(node);
@@ -1457,7 +1130,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   renderTree();
   if (node.kind === "file" && hasHandler(node.extension)) {
     try {
-      if (await openWithHandler(node, config)) {
+      if (await openWithHandler(node, config, handlerBridge)) {
         updateHeader();
         renderTree();
         return;
@@ -1473,21 +1146,6 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   }
   const handler = getHandlerKind(node);
   if (handler !== "text") {
-    if (handler === "xlsx" || handler === "pdf" || handler === "docx") {
-      try {
-        await openBinaryNode(node, handler);
-        updateHeader();
-        renderTree();
-      } catch (error) {
-        const failure = commandFailure(error);
-        statusModeElement.textContent = "加载失败";
-        statusInfoElement.textContent = failure.code || "FORMAT_ERROR";
-        showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
-        updateHeader();
-        showToast(failure.message || "格式加载失败。", true);
-      }
-      return;
-    }
     statusModeElement.textContent = "只读预览";
     statusInfoElement.textContent = "处理器待接入";
     showFileInfoView(node, "unsupported", "当前版本暂不支持预览", { openAsText: node.extension.toLowerCase() !== ".exe" });
@@ -1545,13 +1203,10 @@ function updateCursorStatus(): void {
   if (handler === "text") {
     const line = textEditor ? textEditor.lineOf(textEditor.selectionAnchor()) : 1;
     statusCursorElement.textContent = markdownViewMode === "preview" ? "预览模式" : `第 ${line} 行`;
-  } else if (handler === "xlsx") {
-    statusCursorElement.textContent = activeCellLocator ? `${activeCellLocator.sheet}!${activeCellLocator.cell}` : "未选中单元格";
-  } else if (handler === "pdf") {
-    statusCursorElement.textContent = `第 ${activePdfPage} 页`;
-  } else {
-    statusCursorElement.textContent = "—";
+    return;
   }
+  // 表格/分页视图自己知道当前定位在哪。
+  statusCursorElement.textContent = activeDocumentHandler()?.cursorLabel?.() ?? "—";
 }
 
 function updateTextStatus(): void {
@@ -1613,11 +1268,7 @@ function findNextMatch(direction: 1 | -1): void {
 }
 
 function openFindBar(replaceMode: boolean): void {
-  if (activeHandlerId() === "csv") {
-    csvSearchInput.focus();
-    csvSearchInput.select();
-    return;
-  }
+  if (activeDocumentHandler()?.focusSearch?.()) return;
   if (!findSupported()) {
     showToast("当前视图不支持源码查找/替换。", true);
     return;
@@ -1682,7 +1333,8 @@ function markDirty(): void {
 
 async function saveCurrent(): Promise<void> {
   if (!activeNode) return;
-  if (activeHandlerId() === "csv") {
+  // 表格类 Handler（csv/xlsx）自己序列化，保存后统一由这里回写节点状态。
+  if (activeDocumentHandler()?.save) {
     statusInfoElement.textContent = "保存中…";
     try {
       const metadata = await saveActiveHandler();
@@ -1701,15 +1353,6 @@ async function saveCurrent(): Promise<void> {
     return;
   }
   const handler = getHandlerKind(activeNode);
-  if (handler === "xlsx" && activeBinarySession) {
-    statusInfoElement.textContent = "保存中…";
-    try {
-      await saveSpreadsheet();
-    } catch (error) {
-      showToast(failureMessage(error), true);
-    }
-    return;
-  }
   if (handler !== "text" || !activeSession || !textEditor) return;
   const node = activeNode;
   const session = activeSession;
@@ -2095,7 +1738,6 @@ function removeNode(node: TreeNode): void {
     notesTagFilter = null;
     closeComposer();
     hideAnnotationBubble();
-    activeCellLocator = null;
     workareaElement.classList.remove("notes-open");
     notesPanelElement.classList.add("hidden");
     renderAnnotationUi();
@@ -2322,7 +1964,6 @@ function bindEvents(): void {
     if (!annotationDocument() || !config.annotations.enabled) return;
     showMenu([{ label: "＋ 添加批注", action: () => openContextComposer({ x: event.clientX, y: event.clientY }) }], event.clientX, event.clientY);
   });
-  pdfCanvasWrapElement.addEventListener("scroll", updateActivePdfPageFromScroll, { passive: true });
   helpCloseButton.addEventListener("click", closeHelp);
   settingsCloseButton.addEventListener("click", closeSettings);
   settingsCancelButton.addEventListener("click", closeSettings);
@@ -2469,8 +2110,7 @@ async function initialize(): Promise<void> {
   registerFormatHandlers();
   onAnnotationsChanged(() => {
     renderAnnotationUi();
-    refreshWorkbookMarkers();
-    refreshPdfPageMarkers();
+    activeDocumentHandler()?.refreshMarkers?.();
     if (isMarkdownNode(activeNode) && markdownViewMode === "preview") renderMarkdownPreview();
   });
   renderAnnotationUi();

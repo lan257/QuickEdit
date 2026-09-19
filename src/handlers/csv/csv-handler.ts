@@ -212,6 +212,11 @@ export function createCsvHandler(): DocumentHandler {
     isDirty(): boolean {
       return state?.dirty || false;
     },
+    focusSearch(): boolean {
+      csvSearchInput.focus();
+      csvSearchInput.select();
+      return true;
+    },
     dispose(): void {
       csvViewportElement.onscroll = null;
       csvSearchInput.oninput = null;
