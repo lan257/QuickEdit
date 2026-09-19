@@ -8,6 +8,9 @@ import { showView } from "../../ui/views";
 // pdf.js 只在第一次打开 PDF 时进入主线程，Worker 地址同样按需解析。
 let pdfjsModule: typeof import("pdfjs-dist") | null = null;
 
+// §14.4 只保留当前页附近若干页的画布，远处释放成高度占位。
+const PAGE_WINDOW_RADIUS = 3;
+
 export function createPdfHandler(): DocumentHandler {
   const capabilities: DocumentCapabilities = {
     editable: false,
@@ -47,6 +50,7 @@ export function createPdfHandler(): DocumentHandler {
       currentPage = nearest;
       updateLabel();
     }
+    applyPageWindow();
   };
 
   const attachMarker = (pageNumber: number, host: HTMLElement): void => {
@@ -93,6 +97,22 @@ export function createPdfHandler(): DocumentHandler {
       attachMarker(pageNumber, host);
     } finally {
       rendering.delete(pageNumber);
+    }
+  };
+
+  // 当前页附近补齐渲染，远处释放画布只留高度占位，避免长 PDF 堆满位图内存。
+  const applyPageWindow = (): void => {
+    for (const [pageNumber, host] of hosts) {
+      if (Math.abs(pageNumber - currentPage) <= PAGE_WINDOW_RADIUS) {
+        if (host.dataset.rendered !== "true") void renderPage(pageNumber, host);
+        continue;
+      }
+      const canvas = host.querySelector("canvas");
+      if (!canvas) continue;
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas.remove();
+      host.dataset.rendered = "";
     }
   };
 
