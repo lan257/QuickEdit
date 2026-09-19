@@ -153,19 +153,34 @@ V1 定位为 QuickEdit 的稳定基础版本，重点是维护和完善已有能
 
 ### V2：改进版与实验版本
 
-V2 用于承载新的设计、新的文件能力以及尚未充分验证的工作流。计划方向包括：
+V2 承载新的文件能力与尚未充分验证的工作流。当前实现状态：
 
-- HTML 静态安全预览；
-- 崩溃恢复和自动保存草稿；
-- 外部修改冲突检测与简单合并；
-- Annotation V2：让批注真正附着在文本、单元格或页面内容上；
-- 批注搜索、标签、状态和导出；
-- 图片只读 Viewer；
-- XLSX 虚拟化和大文件降级策略；
-- PDF 大文件按页加载；
-- PPTX 只读 Viewer；
-- 轻量 Workspace 搜索；
-- Agent Change Review 和 MCP UI Bridge。
+已完成：
+
+- 工程化分层：前端 `core / features / handlers / ui`，Rust `error / models / services / commands / windows`；格式经 `HandlerRegistry` 注册，重型依赖（SheetJS、pdf.js、mammoth、papaparse、DOMPurify）按需动态加载；
+- 统一对象信息页：文件夹、不支持格式、可执行文件、过大文件、加载失败共用一套视图，未支持格式可直接“以文本方式打开”；运行入口统一为右上角小型 Run 图标；
+- 图片只读 Viewer：适应窗口、缩放、旋转、系统打开，切换文档时释放 Blob；
+- HTML 静态安全预览：保留原页面样式，脚本不执行、远程资源不抓取，同时可切回文本编辑；
+- CSV 表格查看与编辑：引号/逗号/BOM/CRLF 往返一致，虚拟滚动 + 粘顶表头 + 单元格查找；
+- 脚本运行：`.bat/.cmd/.ps1` 可直接编辑，点击运行总是新建终端并切到脚本所在目录，自定义 Runner 支持占位符与空格/中文路径；不绕过 PowerShell 执行策略；
+- PPTX 逐页正文 + 翻页；`.doc/.ppt` 尽力抽取正文文字；
+- 大文件分批只读加载（文本按行安全切块、二进制走 IPC 分段、PDF 页窗口释放远处画布）；
+- 浅色 / 深色 / 跟随系统主题，选择持久化并实时跟随系统；终端面板固定深底并自带 16 色 ANSI 调色板；
+- Agent Change Review：记录基线 → 采集差异 → 行级 Diff → 整轮确认或回滚，审计与回滚数据分离，回滚原因写回记录供 Agent 读取。
+
+已明确的降级边界：
+
+- `.doc` / `.ppt` 只能取出正文文字，不保留版式、图片与表格结构；无法抽取时进入信息页并用系统程序打开；
+- PPTX 是文字抽取视图，不还原母版、动画与图片；
+- 大文本与大 CSV 为只读，搜索只在已加载部分生效。
+
+V2 backlog：
+
+- MCP Bridge（`quickedit-mcp` stdio + 本地 IPC），让 Agent 直接调用 review.begin / track / capture / get / history；审批动作仍只在界面完成；
+- XLSX 行虚拟化与 SheetJS Worker 解析（当前表格上限 200 行 × 30 列）；
+- 超大 CSV 分段只读加载；
+- MCP sidecar 随安装包分发；
+- 崩溃恢复与自动保存草稿；外部修改冲突检测与简单合并；轻量 Workspace 搜索。
 
 QuickEdit 不默认演进为：
 
