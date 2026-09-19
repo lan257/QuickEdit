@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type * as XLSX from "xlsx";
+import { readFileBytes } from "../../core/binary-file";
 import type { DocumentCapabilities, DocumentHandler, HandlerBridge, HandlerContext, HandlerLocator } from "../../core/handler-registry";
 import type { FileMetadata } from "../../core/types";
 import { cellAnnotations, firstAnnotationId } from "../../annotations/scope-queries";
@@ -122,7 +123,7 @@ export function createXlsxHandler(): DocumentHandler {
       const node = context.node;
       bridge = context.bridge;
       disposed = false;
-      const bytes = new Uint8Array(await invoke<number[]>("read_binary_file", { path: node.path }));
+      const bytes = await readFileBytes(node.path);
       if (disposed) return;
       xlsxModule ??= await import("xlsx");
       const parsed = xlsxModule.read(bytes, { type: "array", cellStyles: true });

@@ -37,6 +37,17 @@ export interface TreeNode {
   forceText?: boolean;
 }
 
+export interface TextChunk {
+  path: string;
+  content: string;
+  encoding: string;
+  offset: number;
+  nextOffset: number;
+  size: number;
+  modifiedTime: number;
+  eof: boolean;
+}
+
 export interface TextDocument {
   path: string;
   content: string;

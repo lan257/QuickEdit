@@ -1,4 +1,4 @@
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorState, Annotation, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 
@@ -6,6 +6,9 @@ export interface TextEditorHandlers {
   onChange: () => void;
   onSelectionChange: () => void;
 }
+
+// 大文件分批追加的标记：内容变了但不算用户编辑，不能触发脏标记。
+const chunkAppend = Annotation.define<boolean>();
 
 // 颜色一律走 CSS 变量：CodeMirror 生成的 .cm-* 规则优先级高于页面样式，
 // 写死浅色值会让暗色主题下正文/光标仍然按浅色渲染。
@@ -41,6 +44,7 @@ export class TextEditor {
   readonly view: EditorView;
   private lastText = "";
   private cached = "";
+  private readonly = false;
   private readonly extraExtensions: Extension[];
   private readonly handlers: TextEditorHandlers;
 
@@ -61,15 +65,38 @@ export class TextEditor {
         keymap.of([...historyKeymap, ...defaultKeymap]),
         EditorView.lineWrapping,
         editorTheme,
+        EditorState.readOnly.of(this.readonly),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             this.cached = "";
-            this.handlers.onChange();
+            const appendedOnly = update.transactions.every((transaction) => transaction.annotation(chunkAppend) === true);
+            if (!appendedOnly) this.handlers.onChange();
           }
           if (update.selectionSet) this.handlers.onSelectionChange();
         }),
         ...this.extraExtensions,
       ],
+    });
+  }
+
+  setReadonly(readonly: boolean): void {
+    if (this.readonly === readonly) return;
+    this.readonly = readonly;
+    this.view.setState(this.buildState(this.view.state.doc.toString()));
+  }
+
+  get isReadonly(): boolean {
+    return this.readonly;
+  }
+
+  // 追加一段已解码正文：不走 onChange，因此不会被当成用户编辑。
+  appendChunk(text: string): void {
+    if (!text) return;
+    const { length } = this.view.state.doc;
+    this.cached = "";
+    this.view.dispatch({
+      changes: { from: length, insert: text },
+      annotations: chunkAppend.of(true),
     });
   }
 

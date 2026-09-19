@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { readFileBytes } from "../../core/binary-file";
 import type { DocumentCapabilities, DocumentHandler, HandlerContext } from "../../core/handler-registry";
 import { formatBytes } from "../../core/format";
 import { readZipEntries } from "../../core/zip-reader";
@@ -54,7 +54,7 @@ export function createPptxHandler(): DocumentHandler {
     capabilities,
     async open(context: HandlerContext): Promise<void> {
       const node = context.node;
-      const bytes = new Uint8Array(await invoke<number[]>("read_binary_file", { path: node.path }));
+      const bytes = await readFileBytes(node.path);
       const slides = await readPptxSlides(bytes);
       const body = openOfficePane(
         `${node.name} · ${slides.length} 页 · ${formatBytes(bytes.length)}`,

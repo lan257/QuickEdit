@@ -27,6 +27,19 @@ pub struct TextDocument {
     pub modified_time: u64,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextChunk {
+    pub path: String,
+    pub content: String,
+    pub encoding: String,
+    pub offset: u64,
+    pub next_offset: u64,
+    pub size: u64,
+    pub modified_time: u64,
+    pub eof: bool,
+}
+
 pub fn modified_time(metadata: &fs::Metadata) -> u64 {
     metadata
         .modified()

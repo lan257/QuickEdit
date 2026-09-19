@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { readFileBytes } from "../../core/binary-file";
 import type { DocumentCapabilities, DocumentHandler, HandlerContext } from "../../core/handler-registry";
 import { formatBytes } from "../../core/format";
 import { showView } from "../../ui/views";
@@ -69,10 +69,10 @@ export function createImageHandler(): DocumentHandler {
     async open(context: HandlerContext): Promise<void> {
       const node = context.node;
       disposed = false;
-      const bytes = await invoke<number[]>("read_binary_file", { path: node.path });
+      const bytes = await readFileBytes(node.path);
       if (disposed) return;
       const mime = MIME[node.extension.toLowerCase()] || "application/octet-stream";
-      const blob = new Blob([new Uint8Array(bytes)], { type: mime });
+      const blob = new Blob([bytes as unknown as BlobPart], { type: mime });
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(blob);
       scale = 1;

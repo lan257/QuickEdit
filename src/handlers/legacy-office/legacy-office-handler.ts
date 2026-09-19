@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { readFileBytes } from "../../core/binary-file";
 import type { DocumentCapabilities, DocumentHandler } from "../../core/handler-registry";
 import { formatBytes } from "../../core/format";
 import { officeBodyElement, statusInfoElement, statusModeElement } from "../../ui/elements";
@@ -18,7 +18,7 @@ export function createLegacyOfficeHandler(): DocumentHandler {
     capabilities,
     async open(context): Promise<void> {
       const node = context.node;
-      const bytes = new Uint8Array(await invoke<number[]>("read_binary_file", { path: node.path }));
+      const bytes = await readFileBytes(node.path);
       const text = extractEmbeddedText(bytes);
       if (!text) throw new Error("未能从该文档中抽取到可读文本");
       const body = openOfficePane(

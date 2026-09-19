@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import type * as PdfJs from "pdfjs-dist";
+import { readFileBytes } from "../../core/binary-file";
 import type { DocumentCapabilities, DocumentHandler, HandlerBridge, HandlerContext, HandlerLocator } from "../../core/handler-registry";
 import { firstAnnotationId, pageAnnotations } from "../../annotations/scope-queries";
 import { pdfCanvasWrapElement, pdfPageLabelElement } from "../../ui/elements";
@@ -132,7 +132,7 @@ export function createPdfHandler(): DocumentHandler {
       const node = context.node;
       bridge = context.bridge;
       disposed = false;
-      const bytes = new Uint8Array(await invoke<number[]>("read_binary_file", { path: node.path }));
+      const bytes = await readFileBytes(node.path);
       if (disposed) return;
       pdfjsModule ??= await import("pdfjs-dist");
       const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");

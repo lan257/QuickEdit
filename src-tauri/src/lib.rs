@@ -44,6 +44,8 @@ pub fn run() {
             commands::files::read_text_file,
             commands::files::save_text_file,
             commands::files::read_binary_file,
+            commands::files::read_binary_range,
+            commands::files::read_text_chunk,
             commands::files::save_binary_file,
             commands::files::create_folder,
             commands::files::create_document,

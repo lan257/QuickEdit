@@ -43,6 +43,7 @@ import {
   type TerminalContext,
   type TerminalExitEvent,
   type TerminalOutputEvent,
+  type TextChunk,
   type TextDocument,
   type TextSession,
   type ThemeMode,
@@ -90,6 +91,7 @@ import { setMarkdownBarEnabled, showView } from "./ui/views";
 import { activeDocumentHandler, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler, type HandlerBridge } from "./core/handler-registry";
 import { registerFormatHandlers } from "./handlers/index";
 import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
+import { decideOpenMode, TEXT_CHUNK_BYTES } from "./core/open-decision";
 import { renderHtmlPreviewDocument } from "./features/html-preview/html-preview";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
@@ -404,6 +406,7 @@ function selectContainer(node: TreeNode): void {
   closeFindBar();
   activeNode = node;
   activeSession = null;
+  resetLargeText();
   resetAnnotations();
   activeAnnotationId = null;
   notesTagFilter = null;
@@ -545,7 +548,7 @@ async function openWithSystemApp(node: TreeNode): Promise<void> {
 }
 
 // Application-level fallback for files without a usable handler (design doc §6).
-function showFileInfoView(node: TreeNode, kind: InfoViewKind, subtitle: string, options?: { retry?: boolean; openAsText?: boolean }): void {
+function showFileInfoView(node: TreeNode, kind: InfoViewKind, subtitle: string, options?: { retry?: boolean; openAsText?: boolean; loadLarge?: boolean }): void {
   const executable = node.extension.toLowerCase() === ".exe";
   const badge = executable ? "EXE" : (node.extension ? node.extension.slice(1, 5).toUpperCase() : "FILE");
   const metadata: InfoViewMetadataItem[] = [
@@ -559,7 +562,8 @@ function showFileInfoView(node: TreeNode, kind: InfoViewKind, subtitle: string, 
   const actions: InfoViewAction[] = [];
   if (options?.retry) actions.push({ id: "retry", label: "重新尝试", primary: true, execute: () => void openNode(node) });
   if (options?.openAsText) actions.push({ id: "text", label: "以文本方式打开", primary: !options.retry, execute: () => void openNode(node, { forceText: true }) });
-  actions.push({ id: "system", label: "使用系统程序打开", primary: !options?.retry && !options?.openAsText, execute: () => void openWithSystemApp(node) });
+  if (options?.loadLarge) actions.push({ id: "large", label: "仍要分批只读加载", primary: true, execute: () => void openLargeText(node, true) });
+  actions.push({ id: "system", label: "使用系统程序打开", primary: !options?.retry && !options?.openAsText && !options?.loadLarge, execute: () => void openWithSystemApp(node) });
   actions.push({ id: "copy", label: "复制位置", execute: () => void copyPath(node.path) });
   renderInfoView({
     kind: executable && kind === "unsupported" ? "executable" : kind,
@@ -1114,6 +1118,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
   closeComposer();
   activeNode = node;
   activeSession = null;
+  resetLargeText();
   markdownViewMode = isMarkdownNode(node) ? (options?.preferEdit ? "edit" : "preview") : "edit";
   setMarkdownBarEnabled(isPreviewableNode(node));
   markdownContentRevision = 0;
@@ -1166,7 +1171,9 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
       size: documentModel.size,
       modifiedTime: documentModel.modifiedTime,
     };
-    ensureEditor().loadText(documentModel.content);
+    const editor = ensureEditor();
+    editor.setReadonly(false);
+    editor.loadText(documentModel.content);
     editorFileLabelElement.textContent = `${node.name} · 文本编辑`;
     editorEncodingElement.textContent = documentModel.encoding.toUpperCase();
     if (isMarkdownNode(node)) {
@@ -1185,10 +1192,11 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
     statusModeElement.textContent = "加载失败";
     statusInfoElement.textContent = failure.code || "FILE_ERROR";
     if (failure.code === "TEXT_TOO_LARGE") {
-      showFileInfoView(node, "too-large", "文件较大，未以普通编辑模式打开");
-    } else {
-      showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
+      updateHeader();
+      await openLargeText(node, false);
+      return;
     }
+    showFileInfoView(node, "load-error", "⚠ 无法解析该文件", { retry: true });
     updateHeader();
     showToast(failure.message || "文档加载失败。", true);
   }
@@ -1217,6 +1225,144 @@ function updateTextStatus(): void {
 
 function findSupported(): boolean {
   return Boolean(activeNode && activeSession && getHandlerKind(activeNode) === "text");
+}
+
+// —— 大文本：分批只读加载（§14.2）。首块立即出内容，接近底部再取下一块。 ——
+interface LargeTextSession {
+  path: string;
+  encoding: string;
+  nextOffset: number;
+  size: number;
+  loading: boolean;
+  task: number;
+}
+
+let largeText: LargeTextSession | null = null;
+let largeTextTask = 0;
+
+function editableLimitBytes(): number {
+  return Math.max(1, config.editor.maxTextFileSizeMB) * 1024 * 1024;
+}
+
+function updateLargeTextStatus(): void {
+  const session = largeText;
+  if (!session) return;
+  const loaded = Math.min(session.nextOffset, session.size);
+  const percent = session.size > 0 ? Math.floor((loaded / session.size) * 100) : 100;
+  statusInfoElement.textContent = `只读分批 · 已加载 ${formatBytes(loaded)} / ${formatBytes(session.size)}（${percent}%）`;
+  const bar = editorFileLabelElement.querySelector<HTMLElement>(".large-text-more");
+  if (loaded < session.size) {
+    if (bar) bar.textContent = `继续加载（已 ${percent}%）`;
+    else {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "large-text-more";
+      button.textContent = `继续加载（已 ${percent}%）`;
+      button.addEventListener("click", () => void loadNextTextChunk());
+      editorFileLabelElement.append(button);
+    }
+  } else {
+    bar?.remove();
+  }
+}
+
+async function loadNextTextChunk(): Promise<void> {
+  const session = largeText;
+  const node = activeNode;
+  if (!session || !node || session.loading || session.nextOffset >= session.size) return;
+  session.loading = true;
+  statusInfoElement.textContent = "正在加载后续内容…";
+  try {
+    const chunk = await invoke<TextChunk>("read_text_chunk", {
+      path: session.path,
+      offset: session.nextOffset,
+      length: TEXT_CHUNK_BYTES,
+      encoding: session.encoding,
+    });
+    // 切走之后旧任务的结果必须作废，不能追加到新文档上。
+    if (largeText !== session || session.task !== largeTextTask || activeNode?.id !== node.id) return;
+    textEditor?.appendChunk(chunk.content);
+    session.nextOffset = chunk.nextOffset;
+    updateLargeTextStatus();
+  } catch (error) {
+    if (largeText === session) statusInfoElement.textContent = "后续内容加载失败，可重试或滚动到本段底部。";
+    showToast(failureMessage(error), true);
+  } finally {
+    if (largeText === session) session.loading = false;
+  }
+}
+
+function bindLargeTextScroll(): void {
+  const scroller = textEditor?.view.scrollDOM;
+  if (!scroller) return;
+  scroller.onscroll = () => {
+    if (!largeText || largeText.nextOffset >= largeText.size) return;
+    const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    if (distance < 1200) void loadNextTextChunk();
+  };
+}
+
+async function openLargeText(node: TreeNode, forced: boolean): Promise<void> {
+  const decision = decideOpenMode(node.size, editableLimitBytes());
+  if (decision.mode === "external" && !forced) {
+    showFileInfoView(node, "too-large", decision.reason, { loadLarge: true });
+    return;
+  }
+  showView("loading");
+  try {
+    const chunk = await invoke<TextChunk>("read_text_chunk", {
+      path: node.path,
+      offset: 0,
+      length: TEXT_CHUNK_BYTES,
+      encoding: null,
+    });
+    if (activeNode?.id !== node.id) return;
+    largeTextTask += 1;
+    largeText = {
+      path: chunk.path,
+      encoding: chunk.encoding,
+      nextOffset: chunk.nextOffset,
+      size: chunk.size,
+      loading: false,
+      task: largeTextTask,
+    };
+    activeSession = {
+      path: chunk.path,
+      encoding: chunk.encoding,
+      size: chunk.size,
+      modifiedTime: chunk.modifiedTime,
+    };
+    const editor = ensureEditor();
+    editor.setReadonly(true);
+    editor.loadText(chunk.content);
+    node.size = chunk.size;
+    node.modifiedTime = chunk.modifiedTime;
+    node.encoding = chunk.encoding;
+    node.dirty = false;
+    editorFileLabelElement.textContent = `${node.name} · 大文本只读`;
+    editorEncodingElement.textContent = chunk.encoding.toUpperCase();
+    bindLargeTextScroll();
+    statusModeElement.textContent = "大文本只读";
+    updateLargeTextStatus();
+    showView("text");
+    updateHeader();
+    renderTree();
+  } catch (error) {
+    if (activeNode?.id !== node.id) return;
+    const failure = commandFailure(error);
+    statusModeElement.textContent = "加载失败";
+    statusInfoElement.textContent = failure.code || "CHUNK_ERROR";
+    showFileInfoView(node, "load-error", "⚠ 无法分批读取该文件", { retry: true });
+    updateHeader();
+    showToast(failureMessage(error), true);
+  }
+}
+
+function resetLargeText(): void {
+  largeText = null;
+  largeTextTask += 1;
+  const scroller = textEditor?.view.scrollDOM;
+  if (scroller) scroller.onscroll = null;
 }
 
 function refreshFindMatches(): void {
@@ -1333,6 +1479,10 @@ function markDirty(): void {
 
 async function saveCurrent(): Promise<void> {
   if (!activeNode) return;
+  if (textEditor?.isReadonly) {
+    showToast("大文本只读模式不支持保存。", true);
+    return;
+  }
   // 表格类 Handler（csv/xlsx）自己序列化，保存后统一由这里回写节点状态。
   if (activeDocumentHandler()?.save) {
     statusInfoElement.textContent = "保存中…";
@@ -1733,6 +1883,7 @@ function removeNode(node: TreeNode): void {
   if (activeNode && containsNode(node, activeNode)) {
     activeNode = null;
     activeSession = null;
+    resetLargeText();
     resetAnnotations();
     activeAnnotationId = null;
     notesTagFilter = null;

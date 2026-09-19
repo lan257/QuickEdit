@@ -1,18 +1,23 @@
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::sync::OnceLock;
+use tauri::ipc::Response;
 use tauri::{AppHandle, Manager};
 
 use crate::error::{command_error, io_error, CommandResult};
 use crate::models::annotation::AnnotationDocument;
 use crate::models::file::{
     metadata_for_path, modified_time, path_from_string, validate_child_name, FileMetadata,
-    TextDocument,
+    TextChunk, TextDocument,
 };
 use crate::services::annotation_store::{annotation_path, refresh_annotation_document};
-use crate::services::encoding::{decode_text, encode_text};
+use crate::services::encoding::{
+    bom_length, chunk_cut, decode_payload, decode_text, detect_encoding, encode_text,
+};
 use crate::services::storage::{atomic_write, write_json};
 
 static LAUNCH_PATHS: OnceLock<Vec<String>> = OnceLock::new();
+const MAX_CHUNK_BYTES: u64 = 4 * 1024 * 1024;
 
 pub fn collect_launch_paths() {
     let paths: Vec<String> = std::env::args().skip(1).filter(|item| !item.is_empty()).collect();
@@ -152,6 +157,92 @@ pub fn read_binary_file(path: String) -> CommandResult<Vec<u8>> {
         return Err(command_error("NOT_FILE", "目录不能作为二进制文档加载。"));
     }
     fs::read(&file_path).map_err(|error| io_error("READ_FILE_FAILED", &file_path, error))
+}
+
+/// 二进制分段读取，走 Tauri 的二进制 IPC（不再序列化成 number[]）。
+#[tauri::command]
+pub fn read_binary_range(path: String, offset: u64, length: u64) -> CommandResult<Response> {
+    let file_path = path_from_string(&path)?;
+    let metadata = fs::metadata(&file_path).map_err(|error| io_error("STAT_FAILED", &file_path, error))?;
+    if metadata.is_dir() {
+        return Err(command_error("NOT_FILE", "目录不能作为二进制文档加载。"));
+    }
+    if offset >= metadata.len() {
+        return Ok(Response::new(Vec::new()));
+    }
+    let want = length.clamp(1, MAX_CHUNK_BYTES) as usize;
+    let mut file = fs::File::open(&file_path).map_err(|error| io_error("OPEN_FAILED", &file_path, error))?;
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| io_error("SEEK_FAILED", &file_path, error))?;
+    let mut buffer = Vec::with_capacity(want.min(256 * 1024));
+    file.take(want as u64)
+        .read_to_end(&mut buffer)
+        .map_err(|error| io_error("READ_FILE_FAILED", &file_path, error))?;
+    Ok(Response::new(buffer))
+}
+
+/// 大文本分块读取：每次只读一段，并保证切在整行 / 完整编码单元处。
+/// 首块自动识别编码，续块必须回传首块得到的编码。
+#[tauri::command]
+pub fn read_text_chunk(
+    path: String,
+    offset: u64,
+    length: u64,
+    encoding: Option<String>,
+) -> CommandResult<TextChunk> {
+    let file_path = path_from_string(&path)?;
+    let metadata = fs::metadata(&file_path).map_err(|error| io_error("STAT_FAILED", &file_path, error))?;
+    if metadata.is_dir() {
+        return Err(command_error("NOT_FILE", "目录不能作为文本文件加载。"));
+    }
+    if offset >= metadata.len() {
+        return Err(command_error(
+            "CHUNK_OUT_OF_RANGE",
+            format!("读取位置 {offset} 已超出文件长度 {}。", metadata.len()),
+        ));
+    }
+    let want = length.clamp(1, MAX_CHUNK_BYTES) as usize;
+    let mut file = fs::File::open(&file_path).map_err(|error| io_error("OPEN_FAILED", &file_path, error))?;
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| io_error("SEEK_FAILED", &file_path, error))?;
+    let mut window = Vec::with_capacity(want.min(256 * 1024));
+    file.take(want as u64)
+        .read_to_end(&mut window)
+        .map_err(|error| io_error("READ_FILE_FAILED", &file_path, error))?;
+
+    let has_more = (offset + window.len() as u64) < metadata.len();
+    let encoding = match encoding {
+        Some(value) if offset > 0 => value,
+        _ => detect_encoding(&window).to_string(),
+    };
+    let payload_start = if offset == 0 {
+        bom_length(&encoding)
+    } else {
+        0
+    };
+    let cut = chunk_cut(&window, &encoding, payload_start, has_more);
+    if cut == 0 {
+        return Err(command_error(
+            "CHUNK_TOO_SMALL",
+            "分块长度不足一个完整行，请增大 length。",
+        ));
+    }
+    let content = if offset == 0 {
+        let (text, _) = decode_text(&window[..cut])?;
+        text
+    } else {
+        decode_payload(&window[..cut], &encoding)?
+    };
+    Ok(TextChunk {
+        path: file_path.to_string_lossy().into_owned(),
+        content,
+        encoding,
+        offset,
+        next_offset: offset + cut as u64,
+        size: metadata.len(),
+        modified_time: modified_time(&metadata),
+        eof: !has_more,
+    })
 }
 
 #[tauri::command]

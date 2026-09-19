@@ -183,6 +183,8 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 .editor-pane, .format-pane { min-width: 0; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; }
 .editor-toolbar, .format-toolbar { height: 42px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--muted); background: #fbfcfe; font-size: 10px; }
 .editor-toolbar-right { display: flex; align-items: center; gap: 10px; }
+.large-text-more { margin-left: 8px; height: 20px; padding: 0 8px; border: 1px solid var(--accent-line); border-radius: 6px; color: var(--accent-strong); background: var(--accent-soft); font-size: 9px; }
+.large-text-more:hover { color: #fff; background: var(--accent); }
 .markdown-mode-tabs { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #f0f2f7; }
 .mode-tab { height: 26px; padding: 0 9px; border: 0; border-radius: 5px; color: var(--muted); background: transparent; font-size: 10px; }
 .mode-tab.active { color: #4d5bd2; background: #fff; box-shadow: 0 1px 3px rgba(35,45,80,.12); }
