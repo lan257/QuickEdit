@@ -164,7 +164,7 @@ V2 承载新的文件能力与尚未充分验证的工作流。当前实现状�
 - CSV 表格查看与编辑：引号/逗号/BOM/CRLF 往返一致，虚拟滚动 + 粘顶表头 + 单元格查找；
 - 脚本运行：`.bat/.cmd/.ps1` 可直接编辑，点击运行总是新建终端并切到脚本所在目录，自定义 Runner 支持占位符与空格/中文路径；不绕过 PowerShell 执行策略；
 - PPTX 逐页正文 + 翻页；`.doc/.ppt` 尽力抽取正文文字；
-- 大文件分批只读加载（文本按行安全切块、二进制走 IPC 分段、PDF 页窗口释放远处画布）；
+- 大文件分批只读加载（文本按行安全切块、二进制走 IPC 分段、PDF 页窗口释放远处画布、XLSX 按 200 行分段浏览）；
 - 浅色 / 深色 / 跟随系统主题，选择持久化并实时跟随系统；终端面板固定深底并自带 16 色 ANSI 调色板；
 - Agent Change Review：记录基线 → 采集差异 → 行级 Diff → 整轮确认或回滚，审计与回滚数据分离，回滚原因写回记录供 Agent 读取。
 
@@ -177,8 +177,7 @@ V2 承载新的文件能力与尚未充分验证的工作流。当前实现状�
 V2 backlog：
 
 - MCP Bridge（`quickedit-mcp` stdio + 本地 IPC），让 Agent 直接调用 review.begin / track / capture / get / history；审批动作仍只在界面完成；
-- XLSX 行虚拟化与 SheetJS Worker 解析（当前表格上限 200 行 × 30 列）；
-- 超大 CSV 分段只读加载；
+- SheetJS 解析移入 Web Worker；超大 CSV 分段只读加载；
 - MCP sidecar 随安装包分发；
 - 崩溃恢复与自动保存草稿；外部修改冲突检测与简单合并；轻量 Workspace 搜索。
 
