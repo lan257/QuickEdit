@@ -212,6 +212,10 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 .md-link { color: inherit; }
 .format-meta { color: var(--muted); font-size: 10px; }
 .sheet-tabs { min-width: 0; display: flex; gap: 6px; overflow-x: auto; }
+.sheet-pager { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sheet-page { height: 26px; padding: 0 9px; border-radius: 7px; font-size: 10px; }
+.sheet-page:disabled { opacity: .45; cursor: not-allowed; }
+.sheet-page-label { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .sheet-tab { height: 30px; padding: 0 11px; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; color: #687285; background: #fff; font-size: 10px; }
 .sheet-tab.active { color: #4d5bd2; background: var(--accent-soft); border-color: #dfe3ff; }
 .excel-table-wrap { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 14px; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }

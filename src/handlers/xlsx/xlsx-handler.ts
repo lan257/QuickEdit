@@ -10,6 +10,10 @@ import { showView } from "../../ui/views";
 // SheetJS 只在第一次打开表格时加载；实例跨文档复用。
 let xlsxModule: typeof import("xlsx") | null = null;
 
+// 一次只渲染 200 行，超出部分分页浏览，避免整表铺进 DOM（§14.5）。
+const PAGE_ROWS = 200;
+const MAX_COLUMNS = 30;
+
 function columnName(column: number): string {
   let value = column + 1;
   let result = "";
@@ -36,6 +40,24 @@ export function createXlsxHandler(): DocumentHandler {
   let dirty = false;
   let bridge: HandlerBridge | null = null;
   let disposed = false;
+  let rowOffset = 0;
+  let matrix: unknown[][] = [];
+  const sheetCache = new Map<string, unknown[][]>();
+
+  const matrixOf = (name: string): unknown[][] => {
+    const cached = sheetCache.get(name);
+    if (cached) return cached;
+    const sheet = workbook?.Sheets[name];
+    const rows = sheet && xlsxModule ? xlsxModule.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" }) : [];
+    sheetCache.set(name, rows);
+    return rows;
+  };
+
+  const goToCell = (address: string): void => {
+    const row = Number(address.replace(/[A-Z]+/g, "")) - 1;
+    if (!Number.isFinite(row) || row < 0) return;
+    rowOffset = Math.floor(row / PAGE_ROWS) * PAGE_ROWS;
+  };
 
   const render = (): void => {
     if (!workbook || !xlsxModule) return;
@@ -47,15 +69,17 @@ export function createXlsxHandler(): DocumentHandler {
       tab.textContent = name;
       tab.addEventListener("click", () => {
         sheetName = name;
+        matrix = matrixOf(name);
+        rowOffset = 0;
         selected = null;
         render();
       });
       sheetTabsElement.append(tab);
     }
     const sheet = workbook.Sheets[sheetName];
-    const rows = sheet ? xlsxModule.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "" }) : [];
-    const rowCount = Math.min(Math.max(rows.length, 1), 200);
-    const colCount = Math.min(Math.max(...rows.map((row) => row.length), 1), 30);
+    const totalRows = Math.max(matrix.length, 1);
+    const rowCount = Math.min(PAGE_ROWS, Math.max(totalRows - rowOffset, 1));
+    const colCount = Math.min(Math.max(...matrix.map((row) => row.length), 1), MAX_COLUMNS);
     const table = document.createElement("table");
     const thead = document.createElement("thead");
     const headRow = document.createElement("tr");
@@ -70,12 +94,13 @@ export function createXlsxHandler(): DocumentHandler {
     thead.append(headRow);
     table.append(thead);
     const tbody = document.createElement("tbody");
-    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    for (let windowRow = 0; windowRow < rowCount; windowRow += 1) {
+      const rowIndex = rowOffset + windowRow;
       const tr = document.createElement("tr");
       const rowNumber = document.createElement("th");
       rowNumber.textContent = String(rowIndex + 1);
       tr.append(rowNumber);
-      const row = rows[rowIndex] || [];
+      const row = matrix[rowIndex] || [];
       for (let column = 0; column < colCount; column += 1) {
         const td = document.createElement("td");
         td.contentEditable = "true";
@@ -113,7 +138,37 @@ export function createXlsxHandler(): DocumentHandler {
     }
     table.append(tbody);
     excelTableWrapElement.replaceChildren(table);
-    excelMetaElement.textContent = `${workbook.SheetNames.length} 个工作表 · ${sheetName}`;
+    const lastRow = Math.min(rowOffset + rowCount, totalRows);
+    excelMetaElement.textContent = `${workbook.SheetNames.length} 个工作表 · ${sheetName} · 第 ${rowOffset + 1}-${lastRow} 行 / 共 ${totalRows} 行`;
+    if (totalRows > PAGE_ROWS) {
+      const pager = document.createElement("div");
+      pager.className = "sheet-pager";
+      const previous = document.createElement("button");
+      previous.type = "button";
+      previous.className = "sheet-tab sheet-page";
+      previous.textContent = "‹ 上一段";
+      previous.disabled = rowOffset <= 0;
+      previous.addEventListener("click", () => {
+        rowOffset = Math.max(0, rowOffset - PAGE_ROWS);
+        selected = null;
+        render();
+      });
+      const next = document.createElement("button");
+      next.type = "button";
+      next.className = "sheet-tab sheet-page";
+      next.textContent = "下一段 ›";
+      next.disabled = lastRow >= totalRows;
+      next.addEventListener("click", () => {
+        rowOffset = Math.min(totalRows - 1, rowOffset + PAGE_ROWS);
+        selected = null;
+        render();
+      });
+      const page = document.createElement("span");
+      page.className = "sheet-page-label";
+      page.textContent = `${Math.floor(rowOffset / PAGE_ROWS) + 1} / ${Math.ceil(totalRows / PAGE_ROWS)}`;
+      pager.append(previous, page, next);
+      sheetTabsElement.append(pager);
+    }
   };
 
   return {
@@ -130,6 +185,9 @@ export function createXlsxHandler(): DocumentHandler {
       if (disposed) return;
       workbook = parsed;
       sheetName = parsed.SheetNames[0] || "Sheet1";
+      sheetCache.clear();
+      matrix = matrixOf(sheetName);
+      rowOffset = 0;
       selected = null;
       dirty = false;
       session = { path: node.path, size: node.size, modifiedTime: node.modifiedTime };
@@ -164,7 +222,11 @@ export function createXlsxHandler(): DocumentHandler {
     },
     locate(locator: HandlerLocator): boolean {
       if (!workbook || !locator.sheet || !locator.cell) return false;
-      sheetName = locator.sheet;
+      if (locator.sheet !== sheetName) {
+        sheetName = locator.sheet;
+        matrix = matrixOf(sheetName);
+      }
+      goToCell(locator.cell);
       selected = { sheet: locator.sheet, cell: locator.cell };
       render();
       window.setTimeout(() => {
@@ -188,6 +250,9 @@ export function createXlsxHandler(): DocumentHandler {
       disposed = true;
       workbook = null;
       sheetName = "";
+      matrix = [];
+      sheetCache.clear();
+      rowOffset = 0;
       selected = null;
       session = null;
       dirty = false;
