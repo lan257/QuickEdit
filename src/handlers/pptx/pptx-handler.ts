@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { DocumentCapabilities, DocumentHandler, HandlerContext } from "../../core/handler-registry";
 import { formatBytes } from "../../core/format";
 import { readZipEntries } from "../../core/zip-reader";
-import { officeBodyElement, statusInfoElement, statusModeElement } from "../../ui/elements";
+import { officeBodyElement, officeNavElement, officeNextButton, officePageLabelElement, officePrevButton, statusInfoElement, statusModeElement } from "../../ui/elements";
 import { openOfficePane, systemOpenFile } from "../office/office-view";
 
 const SLIDE_PATH = /^ppt\/slides\/slide(\d+)\.xml$/;
@@ -61,7 +61,7 @@ export function createPptxHandler(): DocumentHandler {
         "文字抽取视图：按页给出每页文本，不还原版式、配色与图片。需要完整效果请用 PowerPoint / WPS 打开。",
         () => void systemOpenFile(node.path),
       );
-      slides.forEach((slide, index) => {
+      const cards = slides.map((slide, index) => {
         const card = document.createElement("section");
         card.className = "office-slide";
         const head = document.createElement("div");
@@ -76,13 +76,34 @@ export function createPptxHandler(): DocumentHandler {
           card.append(line);
         }
         body.append(card);
+        return card;
       });
+      let current = 0;
+      const label = (): void => {
+        officePageLabelElement.textContent = `${current + 1} / ${cards.length}`;
+      };
+      const goTo = (index: number): void => {
+        current = Math.min(Math.max(index, 0), cards.length - 1);
+        cards[current].scrollIntoView({ block: "start", behavior: "auto" });
+        label();
+      };
+      // 手动滚动也要跟着页码：以最靠近顶部的卡片为当前页。
+      body.onscroll = (): void => {
+        const top = body.getBoundingClientRect().top;
+        current = cards.reduce((acc, card, index) => (card.getBoundingClientRect().top - top <= 6 ? index : acc), 0);
+        label();
+      };
+      officePrevButton.onclick = (): void => goTo(current - 1);
+      officeNextButton.onclick = (): void => goTo(current + 1);
+      officeNavElement.classList.remove("hidden");
       body.scrollTop = 0;
+      label();
       node.size = bytes.length;
       statusModeElement.textContent = "PPTX 文字抽取";
       statusInfoElement.textContent = `${slides.length} 页 · 只读`;
     },
     dispose(): void {
+      officeBodyElement.onscroll = null;
       officeBodyElement.replaceChildren();
     },
   };
