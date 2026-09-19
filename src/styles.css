@@ -16,6 +16,13 @@
   --accent-soft: #eef1ff;
   --danger: #df5d66;
   --shadow: 0 22px 60px rgba(35, 45, 80, .16);
+  /* 终端固定用深色底：控制台程序输出的 ANSI 调色板（含灰色、蓝色）只在深底上可读。 */
+  --term-bg: #14181f;
+  --term-chrome: #1b212b;
+  --term-line: #2a3240;
+  --term-text: #dfe4ee;
+  --term-muted: #8b94a7;
+  --term-control: #232a36;
 }
 
 * { box-sizing: border-box; }
@@ -453,33 +460,33 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
   .settings-grid { grid-template-columns: 1fr; }
 }
 
-.terminal-panel { position: relative; flex: none; height: 300px; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: #fbfcfe; }
+.terminal-panel { position: relative; flex: none; height: 300px; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--term-line); background: var(--term-bg); }
 .terminal-layout { min-width: 0; min-height: 0; flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) 178px; }
 .terminal-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.terminal-list-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: #f7f9fc; }
-.terminal-list-head { height: 35px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 11px; border-bottom: 1px solid var(--line); color: var(--text); font-size: 10px; }
-.terminal-add-btn { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; color: var(--accent); background: #fff; font-size: 15px; line-height: 1; }
-.terminal-add-btn:hover { border-color: var(--accent-2); background: var(--accent-soft); }
-.terminal-list { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 7px; scrollbar-width: thin; scrollbar-color: #c6cddd transparent; }
-.terminal-list-item { position: relative; display: flex; align-items: center; gap: 5px; min-height: 36px; margin-bottom: 5px; padding: 5px 5px 5px 8px; border: 1px solid transparent; border-radius: 8px; color: var(--muted); background: transparent; text-align: left; }
-.terminal-list-item:hover { border-color: var(--line); background: #fff; }
-.terminal-list-item.active { border-color: #dfe3ff; color: #4d5bd2; background: var(--accent-soft); }
+.terminal-list-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--term-line); background: var(--term-chrome); }
+.terminal-list-head { height: 35px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 11px; border-bottom: 1px solid var(--term-line); color: var(--term-text); font-size: 10px; }
+.terminal-add-btn { width: 24px; height: 24px; padding: 0; border: 1px solid var(--term-line); border-radius: 6px; color: #a9b6ff; background: var(--term-control); font-size: 15px; line-height: 1; }
+.terminal-add-btn:hover { border-color: #41508a; background: #2b3350; }
+.terminal-list { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 7px; scrollbar-width: thin; scrollbar-color: #3a4353 transparent; }
+.terminal-list-item { position: relative; display: flex; align-items: center; gap: 5px; min-height: 36px; margin-bottom: 5px; padding: 5px 5px 5px 8px; border: 1px solid transparent; border-radius: 8px; color: var(--term-muted); background: transparent; text-align: left; }
+.terminal-list-item:hover { border-color: var(--term-line); background: var(--term-control); }
+.terminal-list-item.active { border-color: #41508a; color: #e8ecff; background: #2b3350; }
 .terminal-list-item-main { min-width: 0; flex: 1; overflow: hidden; }
 .terminal-list-item-title, .terminal-list-item-scope { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .terminal-list-item-title { color: inherit; font-size: 10px; font-weight: 600; }
-.terminal-list-item-scope { margin-top: 3px; color: var(--muted); font-size: 8px; }
-.terminal-list-item-close { width: 18px; height: 18px; flex: none; padding: 0; border: 0; border-radius: 5px; color: #aeb6c4; background: transparent; font-size: 13px; line-height: 1; }
-.terminal-list-item-close:hover { color: var(--danger); background: #fff0ef; }
-.terminal-list-empty { padding: 12px 5px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.terminal-list-item-scope { margin-top: 3px; color: var(--term-muted); font-size: 8px; }
+.terminal-list-item-close { width: 18px; height: 18px; flex: none; padding: 0; border: 0; border-radius: 5px; color: #6c7689; background: transparent; font-size: 13px; line-height: 1; }
+.terminal-list-item-close:hover { color: #ff8f98; background: #34272c; }
+.terminal-list-empty { padding: 12px 5px; color: var(--term-muted); font-size: 9px; line-height: 1.5; }
 .terminal-resize-handle { position: absolute; top: -4px; right: 0; left: 0; height: 8px; z-index: 6; cursor: ns-resize; }
-.terminal-head { display: flex; flex: none; align-items: center; gap: 10px; padding: 5px 12px; border-bottom: 1px solid var(--line); background: #f7f9fc; }
-.terminal-title { color: var(--text); font-size: 11px; font-weight: 600; }
-.terminal-shell { height: 24px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); font-size: 11px; }
-.terminal-status { flex: 1; text-align: right; color: var(--muted); font-size: 10px; }
+.terminal-head { display: flex; flex: none; align-items: center; gap: 10px; padding: 5px 12px; border-bottom: 1px solid var(--term-line); background: var(--term-chrome); }
+.terminal-title { color: var(--term-text); font-size: 11px; font-weight: 600; }
+.terminal-shell { height: 24px; padding: 0 6px; border: 1px solid var(--term-line); border-radius: 6px; background: var(--term-control); color: var(--term-text); font-size: 11px; }
+.terminal-status { flex: 1; text-align: right; color: var(--term-muted); font-size: 10px; }
 .terminal-actions { display: flex; gap: 4px; }
-.terminal-btn { width: 24px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--muted); font-size: 12px; line-height: 1; }
-.terminal-btn:hover { color: var(--text); background: #f3f5f8; }
-.terminal-host { flex: 1 1 auto; min-height: 0; padding: 6px 10px 8px; overflow: hidden; }
+.terminal-btn { width: 24px; height: 24px; padding: 0; border: 1px solid var(--term-line); border-radius: 6px; background: var(--term-control); color: var(--term-muted); font-size: 12px; line-height: 1; }
+.terminal-btn:hover { color: var(--term-text); background: #2b3341; }
+.terminal-host { flex: 1 1 auto; min-height: 0; padding: 6px 10px 8px; overflow: hidden; background: var(--term-bg); }
 .terminal-host .xterm { height: 100%; }
 .terminal-instance-host {
   position: relative;
@@ -503,18 +510,11 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
   resize: none !important;
 }
 .terminal-instance-host .xterm .xterm-viewport {
-  background-color: #fbfcfe;
+  background-color: var(--term-bg);
 }
 .terminal-instance-host.hidden { display: none; }
 .statusbar-terminal { flex: none; height: 22px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--muted); font-size: 10px; }
 .statusbar-terminal:hover { color: var(--accent); border-color: var(--accent-2); }
-:root[data-theme="dark"] .terminal-panel { background: #20242d; border-color: #323845; }
-:root[data-theme="dark"] .terminal-head { background: #252a34; border-color: #323845; }
-:root[data-theme="dark"] .terminal-list-panel { background: #252a34; border-color: #323845; }
-:root[data-theme="dark"] .terminal-shell,
-:root[data-theme="dark"] .terminal-btn,
-:root[data-theme="dark"] .terminal-add-btn,
+/* 终端面板不再随主题切换（始终深底），只有状态栏按钮跟随暗色主题。 */
 :root[data-theme="dark"] .statusbar-terminal { background: #252a34; border-color: #3a4150; color: var(--muted); }
-:root[data-theme="dark"] .terminal-list-item:hover { background: #292e38; }
-:root[data-theme="dark"] .terminal-list-item.active { border-color: #414b77; background: #2b3150; }
 .statusbar-terminal.active { color: var(--accent); border-color: var(--accent-2); background: var(--accent-soft); }

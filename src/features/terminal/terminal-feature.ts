@@ -10,12 +10,30 @@ import {
   terminalToggleButton,
 } from "../../ui/elements";
 
+// 终端面板固定深底（见 --term-bg）。必须自带 16 色板：控制台程序输出的灰、蓝、青等
+// 颜色沿用 Windows 深色调色板，在浅底上几乎不可读。
 const terminalTheme = {
-  background: "#fbfcfe",
-  foreground: "#222b3a",
-  cursor: "#5b6cf9",
-  cursorAccent: "#ffffff",
-  selectionBackground: "rgba(91, 108, 249, 0.22)",
+  background: "#14181f",
+  foreground: "#dfe4ee",
+  cursor: "#7c93ff",
+  cursorAccent: "#14181f",
+  selectionBackground: "rgba(124, 147, 255, 0.3)",
+  black: "#7c8494",
+  red: "#e5636c",
+  green: "#9ccf79",
+  yellow: "#e5c07b",
+  blue: "#6ba7f2",
+  magenta: "#c678dd",
+  cyan: "#56b6c2",
+  white: "#c8cfdb",
+  brightBlack: "#98a2b5",
+  brightRed: "#ff8a92",
+  brightGreen: "#b7e29a",
+  brightYellow: "#f2d391",
+  brightBlue: "#8cc2ff",
+  brightMagenta: "#dda0f0",
+  brightCyan: "#7fd8e8",
+  brightWhite: "#f2f5fa",
 };
 
 function base64ToBytes(value: string): Uint8Array {
