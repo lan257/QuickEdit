@@ -5,7 +5,7 @@ export type NodeKind = "docs" | "workspace" | "folder" | "file";
 export type HandlerKind = "text" | "xlsx" | "pdf" | "docx" | "future";
 export type MarkdownViewMode = "edit" | "preview";
 export type TreeSortMode = "files-first" | "folders-first" | "name-desc" | "modified-desc";
-export type ThemeMode = "light" | "dark";
+export type ThemeMode = "light" | "dark" | "system";
 export type TerminalShell = "powershell" | "cmd";
 
 export interface FileMetadata {

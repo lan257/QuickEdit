@@ -7,19 +7,23 @@ export interface TextEditorHandlers {
   onSelectionChange: () => void;
 }
 
+// 颜色一律走 CSS 变量：CodeMirror 生成的 .cm-* 规则优先级高于页面样式，
+// 写死浅色值会让暗色主题下正文/光标仍然按浅色渲染。
 const editorTheme = EditorView.theme({
-  "&": { height: "100%", backgroundColor: "#fff", fontSize: "13px" },
-  "&:focus-within": { backgroundColor: "#fefeff" },
+  "&": { height: "100%", backgroundColor: "transparent", fontSize: "13px" },
+  "&:focus-within": { backgroundColor: "transparent" },
   ".cm-scroller": {
     fontFamily: '"Cascadia Code", Consolas, "Microsoft YaHei", monospace',
     lineHeight: "1.85",
     padding: "28px 34px",
     tabSize: "2",
   },
-  ".cm-content": { caretColor: "#222b3a", color: "#222b3a" },
+  ".cm-content": { caretColor: "var(--text)", color: "var(--text)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--text)" },
+  ".cm-selectionBackground, .cm-content ::selection": { backgroundColor: "var(--cm-selection)" },
   ".cm-focused": { outline: "none" },
   ".cm-scroller::-webkit-scrollbar": { width: "8px" },
-  ".cm-scroller::-webkit-scrollbar-thumb": { borderRadius: "8px", background: "#c6cddd" },
+  ".cm-scroller::-webkit-scrollbar-thumb": { borderRadius: "8px", background: "var(--scroll-thumb)" },
 });
 
 export interface TextRange {

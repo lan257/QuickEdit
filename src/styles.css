@@ -34,6 +34,7 @@
   --muted-icon-bg: #eef1f6;
   --muted-icon-text: #687285;
   --purple-soft-bg: #f0edff;
+  --cm-selection: #dfe3ff;
   /* 终端固定用深色底：控制台程序输出的 ANSI 调色板（含灰色、蓝色）只在深底上可读。 */
   --term-bg: #14181f;
   --term-chrome: #1b212b;
@@ -300,6 +301,8 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 :root[data-theme="dark"] .csv-cell { color: var(--text); border-right-color: #2b3140; }
 :root[data-theme="dark"] .csv-head, :root[data-theme="dark"] .csv-row-number { background: #262b35; }
 .office-toolbar { justify-content: space-between; }
+.office-controls { display: flex; align-items: center; gap: 8px; }
+.office-nav { display: flex; align-items: center; gap: 6px; }
 .office-body { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 18px 24px 32px; background: #fff; color: var(--text); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .office-warning { margin: 0 0 14px; padding: 8px 11px; border: 1px solid #e6d9a8; border-radius: 8px; background: #fdf8e7; color: #7a6a2f; font-size: 10px; line-height: 1.6; }
 .office-slide { margin: 0 0 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; }
@@ -420,6 +423,7 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
   --muted-icon-bg: #262b35;
   --muted-icon-text: #9aa3b2;
   --purple-soft-bg: #332b4d;
+  --cm-selection: #3b4670;
 }
 :root[data-theme="dark"] .app,
 :root[data-theme="dark"] .main,

@@ -105,25 +105,33 @@ markdownRenderer.renderer.rules.image = (tokens, index) => {
 markdownRenderer.renderer.rules.link_open = () => "";
 markdownRenderer.renderer.rules.link_close = () => "";
 
+const systemDarkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+let pendingTheme: ThemeMode = "light";
+
 function updateThemeCards(mode: ThemeMode): void {
   themeLightButton.classList.toggle("active", mode === "light");
-  themeDarkButton.classList.remove("active");
-  themeSystemButton.classList.remove("active");
+  themeDarkButton.classList.toggle("active", mode === "dark");
+  themeSystemButton.classList.toggle("active", mode === "system");
 }
 
-function applyTheme(_theme: string): void {
-  document.documentElement.dataset.theme = "light";
-  themeSelect.value = "light";
-  updateThemeCards("light");
+function applyTheme(mode: ThemeMode): void {
+  pendingTheme = mode;
+  const resolved = mode === "system" ? (systemDarkQuery.matches ? "dark" : "light") : mode;
+  document.documentElement.dataset.theme = resolved;
+  themeSelect.value = mode;
+  updateThemeCards(mode);
+  themeColorMeta?.setAttribute("content", resolved === "dark" ? "#151922" : "#eef1f6");
 }
 
-function requestTheme(mode: "light" | "dark" | "system"): void {
-  if (mode !== "light") {
-    showToast("深色/跟随系统主题暂不支持，已排入 V2。", true);
-    return;
-  }
-  applyTheme("light");
+// 设置弹窗里的即时预览：真正落盘要等用户点“保存”。
+function requestTheme(mode: ThemeMode): void {
+  applyTheme(mode);
 }
+
+systemDarkQuery.addEventListener("change", () => {
+  if (pendingTheme === "system") applyTheme("system");
+});
 
 
 let config = fallbackConfig;
@@ -1789,10 +1797,12 @@ function restoreSettingsDefaults(): void {
   shellContextMenuInput.checked = fallbackConfig.shell.contextMenu;
   shellOpenWithInput.checked = fallbackConfig.shell.openWith;
   runnersInput.value = "";
-  requestTheme("light");
+  requestTheme(fallbackConfig.appearance.theme);
 }
 
+// 取消时回到已保存的主题；保存路径上 config 已先更新，这里只是同一值重复应用。
 function closeSettings(): void {
+  applyTheme(config.appearance.theme);
   settingsOverlayElement.classList.add("hidden");
 }
 
@@ -1870,7 +1880,7 @@ async function saveSettings(): Promise<void> {
     },
     appearance: {
       ...config.appearance,
-      theme: "light",
+      theme: pendingTheme,
     },
     runners,
   };
@@ -1885,7 +1895,6 @@ async function saveSettings(): Promise<void> {
       await invoke("set_shell_integration", { kind: "openWith", enabled: nextConfig.shell.openWith });
     }
     config = nextConfig;
-    applyTheme(config.appearance.theme);
     closeSettings();
     renderTree();
     showToast("配置已保存");
