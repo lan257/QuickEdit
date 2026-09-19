@@ -57,6 +57,7 @@ import {
   basename,
   commandFailure,
   countFiles,
+  directoryOf,
   escapeHtml,
   failureMessage,
   formatBytes,
@@ -93,6 +94,7 @@ import { setMarkdownBarEnabled, showView } from "./ui/views";
 import { activeHandlerId, disposeActiveHandler, hasHandler, openWithHandler, saveActiveHandler } from "./core/handler-registry";
 import { registerFormatHandlers } from "./handlers/index";
 import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
+import { renderHtmlPreviewDocument } from "./features/html-preview/html-preview";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -197,9 +199,14 @@ function createFileNode(metadata: FileMetadata): TreeNode {
   };
 }
 
+// 脚本始终按纯文本编辑打开，不依赖用户配置里的后缀清单（旧配置可能缺少这些后缀，
+// 会退化成信息概览页）。.exe 不在其中，仍走可执行文件概览。
+const SCRIPT_EDIT_EXTENSIONS = new Set([".bat", ".cmd", ".ps1"]);
+
 function getHandlerKind(node: TreeNode): HandlerKind {
   if (node.forceText) return "text";
   const extension = node.extension.toLowerCase();
+  if (SCRIPT_EDIT_EXTENSIONS.has(extension)) return "text";
   if (config.handlers.text.enabled && config.handlers.text.extensions.some((item) => item.toLowerCase() === extension)) {
     return "text";
   }
@@ -526,20 +533,6 @@ function renderFolderInfo(node: TreeNode): void {
   });
 }
 
-const BINARY_FALLBACK_EXTENSIONS = new Set([
-  ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
-  ".exe", ".dll", ".so", ".msi", ".bin",
-  ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".svg",
-  ".mp3", ".mp4", ".avi", ".mov", ".mkv", ".wav",
-  ".ttf", ".otf", ".woff", ".woff2", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-]);
-
-function looksLikeTextFile(node: TreeNode): boolean {
-  if (BINARY_FALLBACK_EXTENSIONS.has(node.extension.toLowerCase())) return false;
-  const limit = Math.max(1, config.editor.maxTextFileSizeMB) * 1024 * 1024;
-  return node.size > 0 && node.size <= limit;
-}
-
 async function openWithSystemApp(node: TreeNode): Promise<void> {
   try {
     if (hasTauriRuntime()) {
@@ -665,7 +658,7 @@ async function runActiveDocument(): Promise<void> {
     showToast("该文件没有可用的运行方式。", true);
     return;
   }
-  await terminalFeature.runCommand(node, plan.shell, plan.command);
+  await terminalFeature.runCommand(node, plan.shell, plan.command, directoryOf(node.path));
 }
 
 function isMarkdownNode(node: TreeNode | null): boolean {
@@ -702,24 +695,15 @@ function renderMarkdownPreview(): void {
   highlightPreviewAnnotations(markdownPreviewElement, annotationsForPanel());
 }
 
-const HTML_PREVIEW_CSP = "default-src 'none'; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; style-src 'unsafe-inline'; img-src data: blob:;";
-
-// §8: sanitize the in-memory HTML and render it in a fully sandboxed iframe with a
-// strict CSP. Scripts never execute and no remote resource is fetched.
+// §8: HTML 静态预览委托给 features/html-preview（净化 + CSP + 沙箱 iframe）。
 async function renderHtmlPreview(): Promise<void> {
   if (!isHtmlNode(activeNode)) return;
   const source = activeNode?.content;
   if (source === undefined) return;
   if (htmlPreviewRevision === markdownContentRevision) return;
-  const { default: DOMPurify } = await import("dompurify");
+  const frameDocument = await renderHtmlPreviewDocument(source);
   if (activeNode?.content !== source) return;
-  const clean = DOMPurify.sanitize(source, {
-    FORBID_TAGS: ["script", "iframe", "frame", "object", "embed", "link", "base", "form", "meta"],
-    FORBID_ATTR: ["src", "srcset", "href", "action", "formaction", "data", "code", "codemanager"],
-    USE_PROFILES: { html: true, svg: true },
-  });
-  const document_ = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}"><style>body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:24px;color:#202938;line-height:1.6}img{max-width:100%}</style></head><body>${clean}</body></html>`;
-  htmlPreviewFrameElement.srcdoc = document_;
+  htmlPreviewFrameElement.srcdoc = frameDocument;
   htmlPreviewRevision = markdownContentRevision;
 }
 
@@ -1497,7 +1481,7 @@ async function openNode(node: TreeNode, options?: { preferEdit?: boolean; forceT
     }
     statusModeElement.textContent = "只读预览";
     statusInfoElement.textContent = "处理器待接入";
-    showFileInfoView(node, "unsupported", "当前版本暂不支持预览", { openAsText: looksLikeTextFile(node) });
+    showFileInfoView(node, "unsupported", "当前版本暂不支持预览", { openAsText: node.extension.toLowerCase() !== ".exe" });
     return;
   }
 

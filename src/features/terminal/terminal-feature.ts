@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { TerminalContext, TerminalOutputEvent, TerminalExitEvent, TerminalSession, TreeNode } from "../../core/types";
-import { failureMessage, hasTauriRuntime } from "../../core/format";
+import { basename, failureMessage, hasTauriRuntime } from "../../core/format";
 import { showToast } from "../../ui/toast";
 import {
   terminalAddButton, terminalCloseButton, terminalHostElement, terminalListElement, terminalPanelElement,
@@ -34,7 +34,7 @@ export interface TerminalFeature {
   fit(): void;
   openFor(target: TreeNode | null): Promise<void>;
   toggle(force?: boolean): Promise<void>;
-  runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string): Promise<void>;
+  runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string, cwd: string): Promise<void>;
   handleOutput(payload: TerminalOutputEvent): void;
   handleExit(payload: TerminalExitEvent): void;
 }
@@ -281,28 +281,26 @@ export function createTerminalFeature(deps: TerminalFeatureDeps): TerminalFeatur
     session.terminal.focus();
   }
 
-  // §3.4/§12: only ever invoked from an explicit user click. Opens (or reuses) a
-  // terminal at the target's directory and types the run command + Enter.
-  async function runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string): Promise<void> {
+  // §3.4/§12: only ever invoked from an explicit user click. 每次运行都新建终端，
+  // cwd 固定为脚本自身所在目录：复用旧终端会停在别的工作目录，相对路径必然出错。
+  async function runCommand(target: TreeNode | null, shell: "powershell" | "cmd", command: string, cwd: string): Promise<void> {
     try {
-      const context = await deps.contextFor(target);
-      let session = sessions.find((item) => item.scopeKey === context.scopeKey);
-      if (!session) {
-        session = createSession(context);
-      }
+      const session = createSession({
+        cwd: cwd || undefined,
+        scopeKey: `run:${Date.now()}-${sequence}`,
+        scopeLabel: cwd ? basename(cwd) : "默认目录",
+      });
+      if (target?.name) session.title = `运行 ${target.name}`;
       session.shell = shell;
       activate(session.id);
-      if (!session.running && !session.spawning) {
-        await spawn(session);
-      }
-      const target2 = session;
-      const write = (): void => {
-        const processId = target2.processId;
-        if (!processId) return;
+      await spawn(session);
+      const processId = session.processId;
+      if (!session.running || !processId) return;
+      renderList();
+      // 新 shell 打印提示符需要时间，立刻写入会被初始化流程吞掉。
+      window.setTimeout(() => {
         void invoke("terminal_write", { sessionId: processId, data: `${command}\r` }).catch((error) => showToast(failureMessage(error), true));
-      };
-      if (target2.running) write();
-      else window.setTimeout(write, 400);
+      }, 350);
     } catch (error) {
       showToast(failureMessage(error), true);
     }

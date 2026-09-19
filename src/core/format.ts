@@ -20,6 +20,12 @@ export function basename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
+export function directoryOf(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, "");
+  const index = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+  return index > 0 ? normalized.slice(0, index) : "";
+}
+
 export function samePath(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }

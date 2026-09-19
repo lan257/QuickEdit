@@ -62,7 +62,8 @@ export function createCsvHandler(): DocumentHandler {
     const end = Math.min(total, Math.ceil((scrollTop + viewHeight) / ROW_HEIGHT) + BUFFER_ROWS);
     const headerHeight = 30;
 
-    const table = document.createElement("table");
+    // 必须是普通 div：<table> 会把子元素变成匿名表格盒，sticky 表头会失效。
+    const table = document.createElement("div");
     table.className = "csv-table";
     table.style.height = `${headerHeight + total * ROW_HEIGHT}px`;
 
@@ -114,7 +115,8 @@ export function createCsvHandler(): DocumentHandler {
       body.append(line);
     }
 
-    csvViewportElement.replaceChildren(head, body);
+    table.append(head, body);
+    csvViewportElement.replaceChildren(table);
   }
 
   function updateStatus(): void {
