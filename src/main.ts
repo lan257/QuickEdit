@@ -94,6 +94,7 @@ import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
 import { decideOpenMode, TEXT_CHUNK_BYTES } from "./core/open-decision";
 import { renderHtmlPreviewDocument } from "./features/html-preview/html-preview";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
+import { createReviewPanel } from "./features/review/review-panel";
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: false, typographer: false });
 markdownRenderer.renderer.rules.image = (tokens, index) => {
@@ -1862,6 +1863,7 @@ async function terminalContextFor(target: TreeNode | null): Promise<TerminalCont
 }
 
 const terminalFeature = createTerminalFeature({ contextFor: terminalContextFor });
+const reviewPanel = createReviewPanel();
 
 
 function containsNode(parent: TreeNode, target: TreeNode): boolean {
@@ -2191,6 +2193,7 @@ function bindEvents(): void {
     terminalFeature.fit();
   });
   terminalFeature.bindEvents();
+  reviewPanel.bind();
 }
 
 async function openPaths(paths: string[]): Promise<void> {
@@ -2259,6 +2262,10 @@ async function bringWindowToFront(): Promise<void> {
 async function initialize(): Promise<void> {
   bindEvents();
   registerFormatHandlers();
+  // Agent 通过本地审阅接口写入修改轮次，这里轮询+聚焦刷新，保证用户看得见。
+  void reviewPanel.refresh();
+  window.setInterval(() => void reviewPanel.refresh(), 20000);
+  window.addEventListener("focus", () => void reviewPanel.refresh());
   onAnnotationsChanged(() => {
     renderAnnotationUi();
     activeDocumentHandler()?.refreshMarkers?.();

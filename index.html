@@ -95,7 +95,7 @@
                 </div>
                 <div id="imageStage" class="image-stage"><img id="imageElement" class="image-element" alt="" draggable="false" /></div>
               </div>
-              <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span><button id="terminalToggle" class="statusbar-terminal" type="button" title="内置终端（Ctrl+`）">⌨ 终端</button></footer>
+              <footer class="statusbar"><span id="statusMode">—</span><span id="statusInfo"></span><span id="statusCursor">—</span><span class="status-spacer"></span><span id="statusPath"></span><button id="reviewButton" class="statusbar-review hidden" type="button" title="查看 Agent 本轮修改">审阅 <span id="reviewBadge" class="review-badge">0</span></button><button id="terminalToggle" class="statusbar-terminal" type="button" title="内置终端（Ctrl+`）">⌨ 终端</button></footer>
             </div>
             <aside id="notesPanel" class="notes-panel hidden" aria-label="文档批注">
               <div class="notes-head"><div><strong>批注 <span id="notePanelCount">0</span></strong><div id="noteFileLabel" class="note-file">未选择文档</div></div><button id="closeNotesButton" class="icon-btn" type="button" aria-label="关闭批注">×</button></div>
@@ -145,6 +145,12 @@
       </div>
     </div>
 
+    <div id="reviewOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+      <div class="modal review-modal">
+        <div class="modal-head"><strong id="reviewTitle">Agent 修改审阅</strong><button id="reviewClose" class="icon-btn" type="button" aria-label="关闭审阅">×</button></div>
+        <div id="reviewBody" class="review-body"></div>
+      </div>
+    </div>
     <div id="helpOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
       <div class="modal help-modal">
         <div class="modal-head"><strong id="helpTitle">QuickEdit 帮助</strong><button id="helpClose" class="icon-btn" type="button" aria-label="关闭帮助">×</button></div>

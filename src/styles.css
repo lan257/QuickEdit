@@ -649,6 +649,42 @@ h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 15px; text-overflow: 
 }
 .terminal-instance-host.hidden { display: none; }
 .statusbar-terminal { flex: none; height: 22px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--muted); font-size: 10px; }
+.statusbar-review { flex: none; height: 22px; margin-right: 6px; padding: 0 8px; border: 1px solid var(--warning-line); border-radius: 6px; color: var(--warning-text); background: var(--warning-bg); font-size: 10px; font-weight: 700; }
+.statusbar-review:hover { color: #fff; border-color: var(--accent); background: var(--accent); }
+.review-badge { display: inline-block; min-width: 10px; }
+.review-modal { width: min(760px, 100%); }
+.review-body { display: flex; flex-direction: column; gap: 12px; max-height: min(70vh, 620px); overflow: auto; padding: 16px 18px 20px; }
+.review-set { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.review-set.status-pending { border-color: var(--warning-line); }
+.review-set-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+.review-status { padding: 2px 7px; border-radius: 6px; color: var(--muted); background: var(--muted-icon-bg); font-size: 9px; font-weight: 700; }
+.review-status.status-pending { color: var(--warning-text); background: var(--warning-bg); }
+.review-status.status-approved { color: var(--success-text); background: var(--success-bg); }
+.review-status.status-rejected { color: var(--danger-soft-text); background: var(--danger-soft-bg); }
+.review-set-source { color: var(--text); font-size: 12px; }
+.review-set-summary { min-width: 0; flex: 1; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.review-set-time { color: var(--muted); font-size: 9px; }
+.review-file { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px dashed var(--line); font-size: 11px; }
+.review-kind { flex: none; width: 42px; padding: 1px 0; border-radius: 5px; color: var(--muted); background: var(--muted-icon-bg); text-align: center; font-size: 9px; font-weight: 700; }
+.review-kind.kind-added { color: var(--success-text); background: var(--success-bg); }
+.review-kind.kind-modified { color: var(--warning-text); background: var(--warning-bg); }
+.review-kind.kind-deleted { color: var(--danger-soft-text); background: var(--danger-soft-bg); }
+.review-file-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-file-size, .review-file-tally { flex: none; color: var(--muted); font-size: 10px; }
+.review-file-tally { color: var(--success-text); }
+.review-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.review-actions .btn { height: 32px; flex: none; font-size: 11px; }
+.review-reason { min-width: 0; flex: 1; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); font-size: 11px; }
+.review-diff { margin: 4px 0 8px; padding: 8px 10px; border-radius: 9px; background: var(--surface-2); font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; }
+.review-diff-meta { margin-bottom: 6px; color: var(--muted); font-size: 9px; }
+.review-diff-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-diff-line.diff-added { color: var(--success-text); background: rgba(76, 122, 69, .1); }
+.review-diff-line.diff-removed { color: var(--danger-soft-text); background: rgba(197, 93, 88, .1); }
+.review-empty { padding: 10px 0; color: var(--muted); font-size: 11px; }
+.review-decision { margin-top: 8px; color: var(--muted); font-size: 10px; }
+.review-history-title { margin-top: 6px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.review-history-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px dashed var(--line); font-size: 10px; }
+.review-history-reason { min-width: 0; flex: 1; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .statusbar-terminal:hover { color: var(--accent); border-color: var(--accent-2); }
 /* 终端面板不再随主题切换（始终深底），只有状态栏按钮跟随暗色主题。 */
 :root[data-theme="dark"] .statusbar-terminal { background: #252a34; border-color: #3a4150; color: var(--muted); }

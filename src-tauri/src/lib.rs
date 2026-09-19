@@ -52,6 +52,15 @@ pub fn run() {
             commands::annotations::load_annotations,
             commands::annotations::recover_annotations,
             commands::annotations::save_annotations,
+            commands::review::review_begin,
+            commands::review::review_track,
+            commands::review::review_capture,
+            commands::review::review_get,
+            commands::review::review_diff,
+            commands::review::review_pending,
+            commands::review::review_history,
+            commands::review::review_approve,
+            commands::review::review_reject,
             commands::files::rename_document,
         ])
         .run(tauri::generate_context!())
