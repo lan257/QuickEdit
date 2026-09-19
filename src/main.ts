@@ -624,11 +624,12 @@ function updateHeader(): void {
 
   const handler = getHandlerKind(activeNode);
   const editable = handler === "text" || handler === "xlsx";
+  const readonlyPreview = handler === "pdf" || handler === "docx" || hasHandler(activeNode.extension);
   docNameElement.textContent = activeNode.name;
   docMetaElement.textContent = formatMeta(activeNode);
   docMetaElement.classList.add("path-copyable");
   docMetaElement.title = "点击复制完整路径";
-  modePillElement.textContent = editable ? "可编辑" : handler === "pdf" || handler === "docx" ? "只读预览" : "未接入";
+  modePillElement.textContent = editable ? "可编辑" : readonlyPreview ? "只读预览" : "未接入";
   modePillElement.className = `pill ${editable ? "editable" : "readonly"}`;
   notesButton.disabled = !config.annotations.enabled;
   notesButton.classList.remove("hidden");

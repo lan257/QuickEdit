@@ -1,9 +1,9 @@
 import {
   csvPaneElement, docxPaneElement, emptyViewElement, excelPaneElement, folderInfoPaneElement, htmlPreviewPaneElement, loadingViewElement,
-  markdownModeBarElement, markdownPreviewPaneElement, pdfPaneElement, textPaneElement,
+  markdownModeBarElement, markdownPreviewPaneElement, officePaneElement, pdfPaneElement, textPaneElement,
 } from "./elements";
 
-export type ViewKind = "empty" | "loading" | "folder" | "text" | "markdownPreview" | "htmlPreview" | "csv" | "xlsx" | "pdf" | "docx" | "image";
+export type ViewKind = "empty" | "loading" | "folder" | "text" | "markdownPreview" | "htmlPreview" | "csv" | "office" | "xlsx" | "pdf" | "docx" | "image";
 
 let currentView: ViewKind = "empty";
 let markdownBarEnabled = false;
@@ -18,6 +18,7 @@ export function showView(view: ViewKind): void {
   markdownPreviewPaneElement.classList.toggle("hidden", view !== "markdownPreview");
   htmlPreviewPaneElement.classList.toggle("hidden", view !== "htmlPreview");
   csvPaneElement.classList.toggle("hidden", view !== "csv");
+  officePaneElement.classList.toggle("hidden", view !== "office");
   excelPaneElement.classList.toggle("hidden", view !== "xlsx");
   pdfPaneElement.classList.toggle("hidden", view !== "pdf");
   docxPaneElement.classList.toggle("hidden", view !== "docx");
