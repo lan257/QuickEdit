@@ -1,0 +1,37 @@
+---
+title: 图5 程序系统结构图（模块划分与调用关系）
+---
+flowchart TB
+  root["AI智能行为统计鉴别平台 V1.0<br>DCore 外壳 + Sirt.* 功能组件"]
+  m1["文件选择与批次管理<br>CsvAnalysisRunService"]
+  m2["敏感字段识别与策略<br>Sirt.Application"]
+  m3["本地脱敏执行与 Vault<br>DesensitizationService"]
+  m4["CSV 行为分析<br>Sirt.Analysis"]
+  m5["关系图 Canvas<br>RelationGraphCanvas"]
+  m6["鉴别规则 R001~R006<br>AnalysisRuleResult"]
+  m7["报告/审计/日志/任务<br>Presentation + 日志组件"]
+  m8["词库管理与密钥设置<br>本地配置存储"]
+  n1[/"打开对话框·批次状态"/]
+  n2["类型识别·策略选择"]
+  n3[("执行·结果·Vault 写入")]
+  n4["StructuredRow·BehaviorEvent·Index"]
+  n5["拖动·平移·缩放·适配"]
+  n6["命中 Finding·跳过统计"]
+  n7("报告导出·检索·筛选")
+  n8[("词库条目·密钥校验")]
+  root --- m1
+  root --- m2
+  root --- m3
+  root --- m4
+  root --- m5
+  root --- m6
+  root --- m7
+  root --- m8
+  m1 --- n1
+  m2 --- n2
+  m3 --- n3
+  m4 --- n4
+  m5 --- n5
+  m6 --- n6
+  m7 --- n7
+  m8 --- n8

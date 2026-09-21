@@ -1,0 +1,88 @@
+classDiagram
+  class StructuredRow {
+    +SourceId
+    +RowIndex
+    +Cells[]
+  }
+  class BehaviorEvent {
+    +BehaviorId
+    +Type
+    +SubjectAccount
+    +ObjectAccount
+    +Direction
+    +Amount
+    +EventTime
+    +Location
+    +RelationLayer
+    +Assertion
+    +EvidenceStatus
+  }
+  class BehaviorIndex {
+    +BehaviorsById
+    +BySubject
+    +ByPair
+    +ByType
+  }
+  class AnalysisRun {
+    +RunId
+    +State
+    +RuleResults
+    +Report
+  }
+  class AnalysisReport {
+    +ExecutionSummary
+    +DataScope
+    +RuleFindings
+  }
+  class BehaviorEvidence {
+    +SourceId
+    +RowIndex
+    +UnitIds
+  }
+  class BehaviorGraph {
+    +Nodes[]
+    +Edges[]
+  }
+  class AnalysisRuleResult {
+    +RuleId
+    +Version
+    +RunState
+    +HitFindings
+    +ConsideredCount
+    +SkippedCount
+  }
+  class BehaviorGraphNode {
+    +EntityId
+    +Degree
+    +WeightedDegree
+  }
+  class BehaviorGraphEdge {
+    +Subject
+    +Object
+    +RelationLayer
+    +Count
+    +BehaviorIds
+    +AmountSum
+  }
+  class IdentificationFinding {
+    +RuleId
+    +Version
+    +EntityIds
+    +BehaviorIds
+    +TimeWindow
+    +Amount
+    +Score
+    +StatSummary
+    +ReviewHint
+  }
+  StructuredRow --> BehaviorEvent : 构建 1:0..*
+  BehaviorEvent --> BehaviorIndex : 索引 0..*:1
+  BehaviorIndex --> AnalysisRun : 参与评估
+  AnalysisRun --> AnalysisReport : 生成 1:0..1
+  BehaviorEvent --> BehaviorEvidence : 持有证据 1:1
+  StructuredRow ..> BehaviorEvidence : 按行定位
+  BehaviorIndex --> BehaviorGraph : 生成 1:1
+  BehaviorGraph --> BehaviorGraphNode : 包含 1:*
+  BehaviorGraph --> BehaviorGraphEdge : 包含 1:*
+  AnalysisRun --> AnalysisRuleResult : 汇总 1:6
+  AnalysisRuleResult --> IdentificationFinding : 命中投影 1:0..*

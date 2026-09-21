@@ -1,0 +1,31 @@
+---
+title: 图11 R001~R006 规则模块流程图
+---
+flowchart TB
+  s(["开始（AnalysisRun 就绪）"])
+  p1["载入规则清单与版本号"]
+  p2[["取下一条规则 Ri"]]
+  io1[/"载入参数：时间窗/阈值"/]
+  p3["按实体聚合行为事件"]
+  p4["计算次数/金额/时段/地点"]
+  d1{"达到阈值？"}
+  p5["记录 ConsideredCount<br>与 SkippedCount"]
+  p6["生成 IdentificationFinding<br>实体/证据/时间窗/分数"]
+  p7["写入 AnalysisRuleResult<br>编号/版本/状态/命中数"]
+  d2{"还有下一条规则？"}
+  io2("Finding 供报告与证据回溯")
+  e(["结束"])
+  s --> p1
+  p1 --> p2
+  p2 --> io1
+  io1 --> p3
+  p3 --> p4
+  p4 --> d1
+  d1 -->|否| p5
+  p5 --> p7
+  d1 -->|是| p6
+  p6 --> p7
+  p7 --> d2
+  d2 -.->|是（循环）| p2
+  d2 -->|否| io2
+  io2 --> e

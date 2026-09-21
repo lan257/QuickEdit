@@ -1,0 +1,21 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+rectangle "AI智能行为统计鉴别平台 V1.0" {
+  usecase "数据脱敏" as u1
+  usecase "行为分析" as u2
+  usecase "关系图查看" as u3
+  usecase "规则鉴别" as u4
+  usecase "报告与证据" as u5
+  usecase "日志/任务/设置" as u6
+}
+actor "业务分析用户" as ACTactor
+note "本地文件读取、规则评估、Canvas 交互和结果复核；全部功能离线运行，不上传数据" as N1
+ACTactor -- u1
+ACTactor -- u2
+ACTactor -- u4
+ACTactor -- u5
+ACTactor -- u6
+u2 ..> u3 : include
+u4 ..> u5 : include
+@enduml

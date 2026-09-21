@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "target": {
+    "name": "图表重绘说明.md",
+    "size": 18294,
+    "modifiedTime": 1789964679092
+  },
+  "updatedAt": "2026-09-21T04:24:39.091Z",
+  "annotations": [
+    {
+      "id": "4c23b339-57dd-4c8e-9b2f-e08921df3eb9",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] 本次交付由自研脚本生成：render.ps1 用 PowerShell + System.Drawing（GDI+）按 spec-*.json 直接绘制 PNG，2 倍超采样，未引入任何第三方图形库；to-sources.mjs 由同一份 spec 反推 Mermaid/PlantUML 源码，保证图片与文本源不脱节。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    },
+    {
+      "id": "37be9429-2db5-4cc4-9c75-482a6efb1d25",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] 与原稿 4 张图的差异：原图1 只有 5 层（§1.1 表格口径），本包增加 L6 存储与产物层，用来承载 §4 的源文件只读、独立输出、日志与词库/密钥；原图2 是 9 个圆角框的示意链，本包改为 25 步的 GB/T 1526 完整流程（含授权失败、角色缺失、解析失败不丢弃、无 Finding 只更新概览、不脱敏直连日志等分支）；原图3/图4 存在英文单词被强行断行（Typ e、ByPa ir、IdentificationFi nding、Beha viorIds），已改为按词边界换行并在超长标识符处按字符兜底；原稿缺少 GB/T 8567 要求的程序系统结构图和各模块流程图，故新增图5~图13。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    },
+    {
+      "id": "ad1a388c-9b2a-4345-be56-b241375bfd0f",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] 图号安排待确认：新增图从图5 起顺延，未打乱原稿图1~图4 的编号。若评审要求把程序系统结构图紧跟 §1.2 并整体重编号，需要同步更新目录与全部题注。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    },
+    {
+      "id": "27aca0bc-ca2a-4f5d-a264-8900daee1b6f",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] 模块流程图（图6~图13）的处理逻辑依据设计说明书 §1.2、§2、§3、§4 推导，未逐行核对源码（同目录的使用说明书读取被权限拦截）。其中批次复用、编码探测、Vault 同值复用、词条与密钥校验等判断分支属于合理细化，若与实际实现不一致需以代码为准并回改 spec。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    },
+    {
+      "id": "07afedf1-3822-44de-874d-9f6273e588b1",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] Mermaid 没有文档框符号，sources/fig06~fig13.mmd 中文档框用圆角框近似，存储框用圆柱；PlantUML 用例图需 1.2023 以上版本渲染。以 out/ 下的 PNG 为最终交付物，文本源仅作二次编辑入口。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    },
+    {
+      "id": "0aaae2ab-34ce-473e-98b3-82c6db1e41e4",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-21] render.ps1 -Check 的自检口径：图框两两重叠、连线线段穿过非端点图框、折点越出画布、文字行数撑破图框（放大超过标称高度 1.3 倍）。当前 13 张图全部通过，无告警。",
+      "createdAt": "2026-09-21T04:24:39.091Z",
+      "updatedAt": "2026-09-21T04:24:39.091Z"
+    }
+  ]
+}

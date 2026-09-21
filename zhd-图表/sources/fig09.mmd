@@ -1,0 +1,31 @@
+---
+title: 图9 CSV 行为分析模块流程图
+---
+flowchart TB
+  s(["开始"])
+  p1["解析表头并映射字段角色"]
+  d1{"关键角色齐备？"}
+  io1[/"人工指定列语义"/]
+  p2["构建 StructuredRow<br>逐行 · SourceId / RowIndex"]
+  p3["构建 BehaviorEvent<br>生成稳定 BehaviorId"]
+  d2{"字段解析失败？"}
+  p4["保留原文字段，不丢弃<br>RawAmount /<br>RawDirection /<br>RawTimeText"]
+  p5["构建 BehaviorIndex<br>ById / BySubject /<br>ByPair / ByType"]
+  p6["构建 BehaviorGraph<br>节点度数·边次数与金额"]
+  p7["组装 AnalysisRun 并置状态"]
+  io2("供表现层投影五个标签页")
+  e(["结束"])
+  s --> p1
+  p1 --> d1
+  d1 -->|否| io1
+  io1 -.->|重新映射| p1
+  d1 -->|是| p2
+  p2 --> p3
+  p3 --> d2
+  d2 -->|是| p4
+  p4 --> p5
+  d2 -->|否| p5
+  p5 --> p6
+  p6 --> p7
+  p7 --> io2
+  io2 --> e

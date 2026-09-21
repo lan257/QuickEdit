@@ -1,0 +1,67 @@
+---
+title: 图1 ZHD AI智能行为统计鉴别平台V1.0 系统总体架构图
+---
+flowchart TB
+  subgraph SG1["L1 宿主与授权"]
+    a1[["离线授权 run.kh<br>启动许可校验"]]
+    a2["DCore 桌面外壳<br>窗口/导航/生命周期"]
+    a3["DCoreDesktopHost<br>插件注册与宿主适配"]
+    a4["插件菜单<br>功能入口挂载"]
+  end
+  subgraph SG2["L2 界面层"]
+    b1["Sirt.Desktop 页面<br>主界面/标签页"]
+    b2["AnalysisPageView<br>五大标签页容器"]
+    b3["RelationGraphCanvas<br>节点/连线交互绘制"]
+    b4["报告与日志页面<br>检索/筛选/导出"]
+  end
+  subgraph SG3["L3 表现层"]
+    c1["AnalysisPageViewModel<br>绑定与命令"]
+    c2["BehaviorRowItem<br>行为明细行投影"]
+    c3["GraphNodeRowItem<br>节点/边行投影"]
+    c4["Sirt.Analysis.Presentation<br>AnalysisRun → 可绑定数据"]
+  end
+  subgraph SG4["L4 行为分析层"]
+    d1["AnalysisService<br>分析编排入口"]
+    d2["CsvAnalysisRunService<br>CSV 读取与运行装配"]
+    d3["BehaviorIndex<br>实体/时间/地点索引"]
+    d4[["规则引擎 R001~R006<br>评估与 Finding"]]
+  end
+  subgraph SG5["L5 数据脱敏层"]
+    e1["Sirt.Application<br>脱敏编排"]
+    e2["DesensitizationService<br>识别→策略→执行→结果"]
+    e3[("Vault<br>原值与映射保护信息")]
+  end
+  subgraph SG6["L6 存储与产物"]
+    f1[/"CSV 源文件<br>只读访问"/]
+    f2("脱敏输出文件<br>独立生成，不改源文件")
+    f3[("审计/操作日志<br>过程留痕")]
+    f4[("任务与词库/密钥配置<br>本地持久化")]
+    f5("分析报告<br>运行编号/数据范围/规则结果")
+  end
+  a1 -->|校验通过| a2
+  a2 --> a3
+  a3 -->|挂载入口| a4
+  a2 --> b1
+  a3 --> b2
+  a4 --> b3
+  a4 --> b4
+  b1 --> c1
+  b2 --> c1
+  b3 --> c3
+  b4 --> c4
+  c1 -.->|结果回流| b2
+  c1 --> d1
+  c2 --> d2
+  c3 --> d3
+  c4 --> d4
+  d1 -->|编排| d2
+  d2 --> d3
+  d3 -->|供规则评估| d4
+  d1 -->|可选脱敏| e1
+  e1 --> e2
+  e2 -->|写保护信息| e3
+  e2 --> f2
+  e3 --> f3
+  e2 -.->|读取词库/密钥| f4
+  f1 -.->|只读| d2
+  d4 -->|输出报告| f5

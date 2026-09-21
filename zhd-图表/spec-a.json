@@ -1,0 +1,1063 @@
+{
+  "figures": [
+    {
+      "file": "fig01-图1-系统总体架构图.png",
+      "caption": "图1 ZHD AI智能行为统计鉴别平台V1.0 系统总体架构图",
+      "groups": [
+        {
+          "row0": 0,
+          "row1": 0,
+          "label": "L1 宿主与授权"
+        },
+        {
+          "row0": 1,
+          "row1": 1,
+          "label": "L2 界面层"
+        },
+        {
+          "row0": 2,
+          "row1": 2,
+          "label": "L3 表现层"
+        },
+        {
+          "row0": 3,
+          "row1": 3,
+          "label": "L4 行为分析层"
+        },
+        {
+          "row0": 4,
+          "row1": 4,
+          "label": "L5 数据脱敏层"
+        },
+        {
+          "row0": 5,
+          "row1": 5,
+          "label": "L6 存储与产物"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "a1",
+          "col": 0.35,
+          "row": 0,
+          "shape": "predefined",
+          "label": "离线授权 run.kh",
+          "sub": "启动许可校验",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "a2",
+          "col": 1.7,
+          "row": 0,
+          "label": "DCore 桌面外壳",
+          "sub": "窗口/导航/生命周期"
+        },
+        {
+          "id": "a3",
+          "col": 3.05,
+          "row": 0,
+          "label": "DCoreDesktopHost",
+          "sub": "插件注册与宿主适配",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "a4",
+          "col": 4.4,
+          "row": 0,
+          "label": "插件菜单",
+          "sub": "功能入口挂载"
+        },
+        {
+          "id": "b1",
+          "col": 0.35,
+          "row": 1,
+          "label": "Sirt.Desktop 页面",
+          "sub": "主界面/标签页"
+        },
+        {
+          "id": "b2",
+          "col": 1.7,
+          "row": 1,
+          "label": "AnalysisPageView",
+          "sub": "五大标签页容器",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "b3",
+          "col": 3.05,
+          "row": 1,
+          "label": "RelationGraphCanvas",
+          "sub": "节点/连线交互绘制",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "b4",
+          "col": 4.4,
+          "row": 1,
+          "label": "报告与日志页面",
+          "sub": "检索/筛选/导出"
+        },
+        {
+          "id": "c1",
+          "col": 0.35,
+          "row": 2,
+          "label": "AnalysisPageViewModel",
+          "sub": "绑定与命令",
+          "w": 220,
+          "fs": 10.5
+        },
+        {
+          "id": "c2",
+          "col": 1.7,
+          "row": 2,
+          "label": "BehaviorRowItem",
+          "sub": "行为明细行投影"
+        },
+        {
+          "id": "c3",
+          "col": 3.05,
+          "row": 2,
+          "label": "GraphNodeRowItem",
+          "sub": "节点/边行投影",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "c4",
+          "col": 4.4,
+          "row": 2,
+          "label": "Sirt.Analysis.Presentation",
+          "sub": "AnalysisRun → 可绑定数据",
+          "w": 220,
+          "fs": 10.5
+        },
+        {
+          "id": "d1",
+          "col": 0.35,
+          "row": 3,
+          "label": "AnalysisService",
+          "sub": "分析编排入口"
+        },
+        {
+          "id": "d2",
+          "col": 1.7,
+          "row": 3,
+          "label": "CsvAnalysisRunService",
+          "sub": "CSV 读取与运行装配",
+          "w": 200,
+          "fs": 10.5
+        },
+        {
+          "id": "d3",
+          "col": 3.05,
+          "row": 3,
+          "label": "BehaviorIndex",
+          "sub": "实体/时间/地点索引"
+        },
+        {
+          "id": "d4",
+          "col": 4.4,
+          "row": 3,
+          "shape": "predefined",
+          "label": "规则引擎 R001~R006",
+          "sub": "评估与 Finding",
+          "w": 190,
+          "fs": 11
+        },
+        {
+          "id": "e1",
+          "col": 0.35,
+          "row": 4,
+          "label": "Sirt.Application",
+          "sub": "脱敏编排"
+        },
+        {
+          "id": "e2",
+          "col": 1.7,
+          "row": 4,
+          "label": "DesensitizationService",
+          "sub": "识别→策略→执行→结果",
+          "w": 200,
+          "fs": 10.5
+        },
+        {
+          "id": "e3",
+          "col": 3.05,
+          "row": 4,
+          "shape": "store",
+          "label": "Vault",
+          "sub": "原值与映射保护信息"
+        },
+        {
+          "id": "f1",
+          "col": 0.35,
+          "row": 5,
+          "shape": "io",
+          "label": "CSV 源文件",
+          "sub": "只读访问"
+        },
+        {
+          "id": "f2",
+          "col": 1.7,
+          "row": 5,
+          "shape": "doc",
+          "label": "脱敏输出文件",
+          "sub": "独立生成，不改源文件"
+        },
+        {
+          "id": "f3",
+          "col": 3.05,
+          "row": 5,
+          "shape": "store",
+          "label": "审计/操作日志",
+          "sub": "过程留痕"
+        },
+        {
+          "id": "f4",
+          "col": 4.4,
+          "row": 5,
+          "shape": "store",
+          "label": "任务与词库/密钥配置",
+          "sub": "本地持久化",
+          "w": 200,
+          "fs": 11
+        },
+        {
+          "id": "f5",
+          "col": 5.7,
+          "row": 5,
+          "shape": "doc",
+          "label": "分析报告",
+          "sub": "运行编号/数据范围/规则结果",
+          "w": 200,
+          "fs": 11
+        }
+      ],
+      "edges": [
+        {
+          "from": "a1",
+          "to": "a2",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "校验通过"
+        },
+        {
+          "from": "a2",
+          "to": "a3",
+          "fromSide": "r",
+          "toSide": "l"
+        },
+        {
+          "from": "a3",
+          "to": "a4",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "挂载入口"
+        },
+        {
+          "from": "a2",
+          "to": "b1"
+        },
+        {
+          "from": "a3",
+          "to": "b2"
+        },
+        {
+          "from": "a4",
+          "to": "b3"
+        },
+        {
+          "from": "a4",
+          "to": "b4"
+        },
+        {
+          "from": "b1",
+          "to": "c1"
+        },
+        {
+          "from": "b2",
+          "to": "c1"
+        },
+        {
+          "from": "b3",
+          "to": "c3"
+        },
+        {
+          "from": "b4",
+          "to": "c4"
+        },
+        {
+          "from": "c1",
+          "to": "b2",
+          "fromSide": "t",
+          "toSide": "b",
+          "style": "dashed",
+          "label": "结果回流"
+        },
+        {
+          "from": "c1",
+          "to": "d1"
+        },
+        {
+          "from": "c2",
+          "to": "d2"
+        },
+        {
+          "from": "c3",
+          "to": "d3"
+        },
+        {
+          "from": "c4",
+          "to": "d4"
+        },
+        {
+          "from": "d1",
+          "to": "d2",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "编排"
+        },
+        {
+          "from": "d2",
+          "to": "d3",
+          "fromSide": "r",
+          "toSide": "l"
+        },
+        {
+          "from": "d3",
+          "to": "d4",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "供规则评估"
+        },
+        {
+          "from": "d1",
+          "to": "e1",
+          "label": "可选脱敏"
+        },
+        {
+          "from": "e1",
+          "to": "e2",
+          "fromSide": "r",
+          "toSide": "l"
+        },
+        {
+          "from": "e2",
+          "to": "e3",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "写保护信息"
+        },
+        {
+          "from": "e2",
+          "to": "f2"
+        },
+        {
+          "from": "e3",
+          "to": "f3"
+        },
+        {
+          "from": "e2",
+          "to": "f4",
+          "fromSide": "b",
+          "toSide": "t",
+          "style": "dashed",
+          "label": "读取词库/密钥"
+        },
+        {
+          "from": "f1",
+          "to": "d2",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "dashed",
+          "label": "只读"
+        },
+        {
+          "from": "d4",
+          "to": "f5",
+          "label": "输出报告"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "process",
+          "name": "处理（组件）"
+        },
+        {
+          "shape": "predefined",
+          "name": "预定义过程"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档（产物）"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    },
+    {
+      "file": "fig02-图2-CSV行为分析与脱敏协同流程图.png",
+      "caption": "图2 CSV行为分析与脱敏协同流程图（系统主流程）",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.1,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "lic",
+          "col": 1.1,
+          "row": 1,
+          "shape": "predefined",
+          "label": "校验离线授权 run.kh"
+        },
+        {
+          "id": "ok",
+          "col": 1.1,
+          "row": 2,
+          "shape": "decision",
+          "label": "授权有效？",
+          "w": 150,
+          "h": 74
+        },
+        {
+          "id": "halt",
+          "col": 2.9,
+          "row": 2,
+          "shape": "terminal",
+          "label": "提示授权无效并退出"
+        },
+        {
+          "id": "main",
+          "col": 1.1,
+          "row": 3,
+          "label": "进入主界面并加载导航"
+        },
+        {
+          "id": "pick",
+          "col": 1.1,
+          "row": 4,
+          "shape": "io",
+          "label": "选择 CSV 数据文件"
+        },
+        {
+          "id": "head",
+          "col": 1.1,
+          "row": 5,
+          "label": "解析表头并映射字段角色"
+        },
+        {
+          "id": "miss",
+          "col": 1.1,
+          "row": 6,
+          "shape": "decision",
+          "label": "关键角色齐备？",
+          "w": 150,
+          "h": 74
+        },
+        {
+          "id": "map",
+          "col": 2.9,
+          "row": 6,
+          "shape": "io",
+          "label": "人工指定列语义"
+        },
+        {
+          "id": "row",
+          "col": 1.1,
+          "row": 7,
+          "label": "构建 StructuredRow"
+        },
+        {
+          "id": "evt",
+          "col": 1.1,
+          "row": 8,
+          "label": "构建 BehaviorEvent"
+        },
+        {
+          "id": "bad",
+          "col": 1.1,
+          "row": 9,
+          "shape": "decision",
+          "label": "存在解析失败行？",
+          "w": 168,
+          "h": 74
+        },
+        {
+          "id": "raw",
+          "col": 2.9,
+          "row": 9,
+          "w": 214,
+          "h": 96,
+          "label": "保留原文 RawAmount /\nRawDirection / RawTimeText",
+          "fs": 11
+        },
+        {
+          "id": "idx",
+          "col": 1.1,
+          "row": 10,
+          "label": "生成 BehaviorIndex 与 BehaviorGraph"
+        },
+        {
+          "id": "rule",
+          "col": 1.1,
+          "row": 11,
+          "shape": "predefined",
+          "label": "执行 R001~R006 规则评估"
+        },
+        {
+          "id": "ca",
+          "col": 1.1,
+          "row": 12,
+          "shape": "connector",
+          "w": 48,
+          "h": 48,
+          "fs": 11,
+          "label": "A"
+        },
+        {
+          "id": "ca2",
+          "col": 4.9,
+          "row": 0,
+          "shape": "connector",
+          "w": 48,
+          "h": 48,
+          "fs": 11,
+          "label": "A"
+        },
+        {
+          "id": "hit",
+          "col": 4.9,
+          "row": 1,
+          "shape": "decision",
+          "label": "命中 Finding？",
+          "w": 150,
+          "h": 74
+        },
+        {
+          "id": "only",
+          "col": 6.7,
+          "row": 1,
+          "label": "仅更新概览与统计"
+        },
+        {
+          "id": "find",
+          "col": 4.9,
+          "row": 2,
+          "label": "生成 Finding 与证据回溯定位"
+        },
+        {
+          "id": "view",
+          "col": 4.9,
+          "row": 3,
+          "label": "更新概览/明细/关系图/报告"
+        },
+        {
+          "id": "need",
+          "col": 4.9,
+          "row": 4,
+          "shape": "decision",
+          "label": "需要脱敏输出？",
+          "w": 150,
+          "h": 74
+        },
+        {
+          "id": "rec",
+          "col": 4.9,
+          "row": 5,
+          "label": "敏感字段识别与策略选择"
+        },
+        {
+          "id": "run",
+          "col": 4.9,
+          "row": 6,
+          "label": "执行脱敏并写入 Vault"
+        },
+        {
+          "id": "out",
+          "col": 4.9,
+          "row": 7,
+          "shape": "doc",
+          "label": "生成脱敏输出文件"
+        },
+        {
+          "id": "log",
+          "col": 4.9,
+          "row": 8,
+          "shape": "store",
+          "label": "记录审计日志/操作日志/任务"
+        },
+        {
+          "id": "e",
+          "col": 4.9,
+          "row": 9,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "lic"
+        },
+        {
+          "from": "lic",
+          "to": "ok"
+        },
+        {
+          "from": "ok",
+          "to": "halt",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "ok",
+          "to": "main",
+          "label": "是"
+        },
+        {
+          "from": "main",
+          "to": "pick"
+        },
+        {
+          "from": "pick",
+          "to": "head"
+        },
+        {
+          "from": "head",
+          "to": "miss"
+        },
+        {
+          "from": "miss",
+          "to": "map",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "map",
+          "to": "head",
+          "fromSide": "t",
+          "toSide": "r",
+          "style": "dashed",
+          "label": "重新映射"
+        },
+        {
+          "from": "miss",
+          "to": "row",
+          "label": "是"
+        },
+        {
+          "from": "row",
+          "to": "evt"
+        },
+        {
+          "from": "evt",
+          "to": "bad"
+        },
+        {
+          "from": "bad",
+          "to": "raw",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是（不丢弃）"
+        },
+        {
+          "from": "raw",
+          "to": "idx",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "bad",
+          "to": "idx",
+          "label": "否"
+        },
+        {
+          "from": "idx",
+          "to": "rule"
+        },
+        {
+          "from": "rule",
+          "to": "ca"
+        },
+        {
+          "from": "ca2",
+          "to": "hit"
+        },
+        {
+          "from": "hit",
+          "to": "only",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "only",
+          "to": "view",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "hit",
+          "to": "find",
+          "label": "是"
+        },
+        {
+          "from": "find",
+          "to": "view"
+        },
+        {
+          "from": "view",
+          "to": "need"
+        },
+        {
+          "from": "need",
+          "to": "log",
+          "fromSide": "l",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "need",
+          "to": "rec",
+          "label": "是"
+        },
+        {
+          "from": "rec",
+          "to": "run"
+        },
+        {
+          "from": "run",
+          "to": "out"
+        },
+        {
+          "from": "out",
+          "to": "log"
+        },
+        {
+          "from": "log",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        },
+        {
+          "shape": "predefined",
+          "name": "预定义过程"
+        },
+        {
+          "shape": "connector",
+          "name": "活动连接符（A：转入右列）"
+        }
+      ]
+    },
+    {
+      "file": "fig05-图5-程序系统结构图.png",
+      "caption": "图5 程序系统结构图（模块划分与调用关系）",
+      "nodes": [
+        {
+          "id": "root",
+          "col": 3.5,
+          "row": 0,
+          "w": 300,
+          "h": 62,
+          "label": "AI智能行为统计鉴别平台 V1.0",
+          "sub": "DCore 外壳 + Sirt.* 功能组件"
+        },
+        {
+          "id": "m1",
+          "col": 0,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "文件选择与批次管理",
+          "sub": "CsvAnalysisRunService"
+        },
+        {
+          "id": "m2",
+          "col": 1,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "敏感字段识别与策略",
+          "sub": "Sirt.Application"
+        },
+        {
+          "id": "m3",
+          "col": 2,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "本地脱敏执行与 Vault",
+          "sub": "DesensitizationService"
+        },
+        {
+          "id": "m4",
+          "col": 3,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "CSV 行为分析",
+          "sub": "Sirt.Analysis"
+        },
+        {
+          "id": "m5",
+          "col": 4,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "关系图 Canvas",
+          "sub": "RelationGraphCanvas"
+        },
+        {
+          "id": "m6",
+          "col": 5,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "鉴别规则 R001~R006",
+          "sub": "AnalysisRuleResult"
+        },
+        {
+          "id": "m7",
+          "col": 6,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "报告/审计/日志/任务",
+          "sub": "Presentation + 日志组件"
+        },
+        {
+          "id": "m8",
+          "col": 7,
+          "row": 1.4,
+          "w": 190,
+          "h": 66,
+          "fs": 11,
+          "label": "词库管理与密钥设置",
+          "sub": "本地配置存储"
+        },
+        {
+          "id": "n1",
+          "col": 0,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "shape": "io",
+          "label": "打开对话框·批次状态"
+        },
+        {
+          "id": "n2",
+          "col": 1,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "label": "类型识别·策略选择"
+        },
+        {
+          "id": "n3",
+          "col": 2,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "shape": "store",
+          "label": "执行·结果·Vault 写入"
+        },
+        {
+          "id": "n4",
+          "col": 3,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "label": "StructuredRow·BehaviorEvent·Index"
+        },
+        {
+          "id": "n5",
+          "col": 4,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "label": "拖动·平移·缩放·适配"
+        },
+        {
+          "id": "n6",
+          "col": 5,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "label": "命中 Finding·跳过统计"
+        },
+        {
+          "id": "n7",
+          "col": 6,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "shape": "doc",
+          "label": "报告导出·检索·筛选"
+        },
+        {
+          "id": "n8",
+          "col": 7,
+          "row": 2.8,
+          "w": 190,
+          "h": 58,
+          "fs": 10,
+          "shape": "store",
+          "label": "词库条目·密钥校验"
+        }
+      ],
+      "edges": [
+        {
+          "from": "root",
+          "to": "m1",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m2",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m3",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m4",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m5",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m6",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m7",
+          "style": "line"
+        },
+        {
+          "from": "root",
+          "to": "m8",
+          "style": "line"
+        },
+        {
+          "from": "m1",
+          "to": "n1",
+          "style": "line"
+        },
+        {
+          "from": "m2",
+          "to": "n2",
+          "style": "line"
+        },
+        {
+          "from": "m3",
+          "to": "n3",
+          "style": "line"
+        },
+        {
+          "from": "m4",
+          "to": "n4",
+          "style": "line"
+        },
+        {
+          "from": "m5",
+          "to": "n5",
+          "style": "line"
+        },
+        {
+          "from": "m6",
+          "to": "n6",
+          "style": "line"
+        },
+        {
+          "from": "m7",
+          "to": "n7",
+          "style": "line"
+        },
+        {
+          "from": "m8",
+          "to": "n8",
+          "style": "line"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "process",
+          "name": "模块/功能"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    }
+  ]
+}

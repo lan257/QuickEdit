@@ -1,0 +1,410 @@
+{
+  "figures": [
+    {
+      "file": "fig03-图3-行为分析核心类与数据关系图.png",
+      "caption": "图3 行为分析核心类与数据关系图",
+      "nodes": [
+        {
+          "id": "k_row",
+          "col": 0,
+          "row": 0,
+          "shape": "class",
+          "w": 200,
+          "h": 100,
+          "fs": 11.5,
+          "lines": [
+            "StructuredRow",
+            "SourceId",
+            "RowIndex",
+            "Cells[]"
+          ]
+        },
+        {
+          "id": "k_evt",
+          "col": 1.5,
+          "row": 0,
+          "shape": "class",
+          "w": 215,
+          "h": 182,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorEvent",
+            "BehaviorId / Type",
+            "SubjectAccount",
+            "ObjectAccount",
+            "Direction / Amount",
+            "EventTime",
+            "Location / RelationLayer",
+            "Assertion",
+            "EvidenceStatus"
+          ]
+        },
+        {
+          "id": "k_idx",
+          "col": 3,
+          "row": 0,
+          "shape": "class",
+          "w": 210,
+          "h": 122,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorIndex",
+            "BehaviorsById",
+            "BySubject / ByPair",
+            "ByType"
+          ]
+        },
+        {
+          "id": "k_run",
+          "col": 4.5,
+          "row": 0,
+          "shape": "class",
+          "w": 205,
+          "h": 100,
+          "fs": 11.5,
+          "lines": [
+            "AnalysisRun",
+            "RunId / State",
+            "RuleResults",
+            "Report"
+          ]
+        },
+        {
+          "id": "k_rep",
+          "col": 6,
+          "row": 0,
+          "shape": "class",
+          "w": 210,
+          "h": 100,
+          "fs": 11.5,
+          "lines": [
+            "AnalysisReport",
+            "ExecutionSummary",
+            "DataScope",
+            "RuleFindings"
+          ]
+        },
+        {
+          "id": "k_evi",
+          "col": 0.75,
+          "row": 2,
+          "shape": "class",
+          "w": 200,
+          "h": 100,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorEvidence",
+            "SourceId",
+            "RowIndex",
+            "UnitIds"
+          ]
+        },
+        {
+          "id": "k_grp",
+          "col": 3,
+          "row": 2,
+          "shape": "class",
+          "w": 210,
+          "h": 88,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorGraph",
+            "Nodes[] / Edges[]"
+          ]
+        },
+        {
+          "id": "k_res",
+          "col": 4.5,
+          "row": 2,
+          "shape": "class",
+          "w": 215,
+          "h": 146,
+          "fs": 11.5,
+          "lines": [
+            "AnalysisRuleResult",
+            "RuleId / Version",
+            "RunState",
+            "HitFindings",
+            "ConsideredCount",
+            "SkippedCount"
+          ]
+        },
+        {
+          "id": "k_node",
+          "col": 2.25,
+          "row": 3.7,
+          "shape": "class",
+          "w": 205,
+          "h": 108,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorGraphNode",
+            "EntityId",
+            "Degree",
+            "WeightedDegree"
+          ]
+        },
+        {
+          "id": "k_edge",
+          "col": 3.75,
+          "row": 3.7,
+          "shape": "class",
+          "w": 210,
+          "h": 136,
+          "fs": 11.5,
+          "lines": [
+            "BehaviorGraphEdge",
+            "Subject / Object",
+            "RelationLayer",
+            "Count / BehaviorIds",
+            "AmountSum"
+          ]
+        },
+        {
+          "id": "k_find",
+          "col": 5.4,
+          "row": 3.7,
+          "shape": "class",
+          "w": 220,
+          "h": 166,
+          "fs": 11.5,
+          "lines": [
+            "IdentificationFinding",
+            "RuleId / Version",
+            "EntityIds",
+            "BehaviorIds",
+            "TimeWindow / Amount",
+            "Score",
+            "StatSummary",
+            "ReviewHint"
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "from": "k_row",
+          "to": "k_evt",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "构建 1:0..*"
+        },
+        {
+          "from": "k_evt",
+          "to": "k_idx",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "索引 0..*:1"
+        },
+        {
+          "from": "k_idx",
+          "to": "k_run",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "参与评估"
+        },
+        {
+          "from": "k_run",
+          "to": "k_rep",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "生成 1:0..1"
+        },
+        {
+          "from": "k_evt",
+          "to": "k_evi",
+          "label": "持有证据 1:1"
+        },
+        {
+          "from": "k_row",
+          "to": "k_evi",
+          "style": "dashed",
+          "label": "按行定位"
+        },
+        {
+          "from": "k_idx",
+          "to": "k_grp",
+          "label": "生成 1:1"
+        },
+        {
+          "from": "k_grp",
+          "to": "k_node",
+          "label": "包含 1:*"
+        },
+        {
+          "from": "k_grp",
+          "to": "k_edge",
+          "label": "包含 1:*"
+        },
+        {
+          "from": "k_run",
+          "to": "k_res",
+          "label": "汇总 1:6"
+        },
+        {
+          "from": "k_res",
+          "to": "k_find",
+          "label": "命中投影 1:0..*"
+        }
+      ]
+    },
+    {
+      "file": "fig04-图4-软件功能用例图.png",
+      "caption": "图4 软件功能用例图",
+      "gridW": 230,
+      "nodes": [
+        {
+          "id": "frame",
+          "col": 2.1,
+          "row": 2.65,
+          "shape": "frame",
+          "w": 290,
+          "h": 560,
+          "fs": 13,
+          "label": "AI智能行为统计鉴别平台 V1.0"
+        },
+        {
+          "id": "actor",
+          "col": 0.1,
+          "row": 2.65,
+          "shape": "actor",
+          "w": 60,
+          "h": 96,
+          "fs": 12,
+          "label": "业务分析用户"
+        },
+        {
+          "id": "u1",
+          "col": 2.1,
+          "row": 0.9,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "数据脱敏"
+        },
+        {
+          "id": "u2",
+          "col": 2.1,
+          "row": 1.6,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "行为分析"
+        },
+        {
+          "id": "u3",
+          "col": 2.1,
+          "row": 2.3,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "关系图查看"
+        },
+        {
+          "id": "u4",
+          "col": 2.1,
+          "row": 3,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "规则鉴别"
+        },
+        {
+          "id": "u5",
+          "col": 2.1,
+          "row": 3.7,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "报告与证据"
+        },
+        {
+          "id": "u6",
+          "col": 2.1,
+          "row": 4.4,
+          "shape": "usecase",
+          "w": 190,
+          "h": 62,
+          "fs": 11.5,
+          "label": "日志/任务/设置"
+        },
+        {
+          "id": "note",
+          "col": 2.1,
+          "row": 5.2,
+          "shape": "comment",
+          "w": 430,
+          "h": 46,
+          "fs": 11,
+          "sub": "本地文件读取、规则评估、Canvas 交互和结果复核；全部功能离线运行，不上传数据"
+        }
+      ],
+      "edges": [
+        {
+          "from": "actor",
+          "to": "u1",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "line",
+          "straight": true
+        },
+        {
+          "from": "actor",
+          "to": "u2",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "line",
+          "straight": true
+        },
+        {
+          "from": "actor",
+          "to": "u4",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "line",
+          "straight": true
+        },
+        {
+          "from": "actor",
+          "to": "u5",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "line",
+          "straight": true
+        },
+        {
+          "from": "actor",
+          "to": "u6",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "line",
+          "straight": true
+        },
+        {
+          "from": "u2",
+          "to": "u3",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "dashed",
+          "label": "«include»",
+          "labelDy": 0,
+          "labelDx": 52
+        },
+        {
+          "from": "u4",
+          "to": "u5",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "dashed",
+          "label": "«include»",
+          "labelDy": 0,
+          "labelDx": 52
+        }
+      ]
+    }
+  ]
+}

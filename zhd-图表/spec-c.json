@@ -1,0 +1,1627 @@
+{
+  "figures": [
+    {
+      "file": "fig06-图6-文件选择与批次管理流程图.png",
+      "caption": "图6 文件选择和批次管理模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "用户点击“打开 CSV”"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 2,
+          "shape": "io",
+          "label": "弹出文件选择对话框"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 3,
+          "shape": "decision",
+          "label": "已选择文件？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "cancel",
+          "col": 3.2,
+          "row": 3,
+          "shape": "terminal",
+          "label": "取消并返回主界面"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 4,
+          "label": "以只读方式打开文件流"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 5,
+          "shape": "decision",
+          "label": "打开成功？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "err",
+          "col": 3.2,
+          "row": 5,
+          "shape": "io",
+          "label": "提示不可读或被占用"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 6,
+          "label": "探测编码与 BOM\nUTF-8 / GBK / UTF-16"
+        },
+        {
+          "id": "p4",
+          "col": 1.2,
+          "row": 7,
+          "label": "读取首行并解析表头"
+        },
+        {
+          "id": "d3",
+          "col": 1.2,
+          "row": 8,
+          "shape": "decision",
+          "label": "该文件已有批次？",
+          "w": 176,
+          "h": 76
+        },
+        {
+          "id": "reuse",
+          "col": 3.2,
+          "row": 8,
+          "label": "复用 SourceId\n并定位到既有视图"
+        },
+        {
+          "id": "p5",
+          "col": 1.2,
+          "row": 9,
+          "label": "分配批次 SourceId\n统计行数与列数"
+        },
+        {
+          "id": "t1",
+          "col": 1.2,
+          "row": 10,
+          "shape": "store",
+          "label": "登记任务与批次状态"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 11,
+          "shape": "terminal",
+          "label": "返回分析上下文"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "cancel",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "d1",
+          "to": "p2",
+          "label": "是"
+        },
+        {
+          "from": "p2",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "err",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "err",
+          "to": "io1",
+          "fromSide": "t",
+          "toSide": "r",
+          "style": "dashed",
+          "label": "重新选择"
+        },
+        {
+          "from": "d2",
+          "to": "p3",
+          "label": "是"
+        },
+        {
+          "from": "p3",
+          "to": "p4"
+        },
+        {
+          "from": "p4",
+          "to": "d3"
+        },
+        {
+          "from": "d3",
+          "to": "reuse",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "reuse",
+          "to": "e",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d3",
+          "to": "p5",
+          "label": "否"
+        },
+        {
+          "from": "p5",
+          "to": "t1"
+        },
+        {
+          "from": "t1",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    },
+    {
+      "file": "fig07-图7-敏感字段识别与策略流程图.png",
+      "caption": "图7 敏感字段识别与策略模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 1,
+          "shape": "io",
+          "label": "输入表头与样本行"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 2,
+          "label": "按标准表头匹配字段角色"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 3,
+          "shape": "decision",
+          "label": "表头未命中？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "p2",
+          "col": 3.2,
+          "row": 3,
+          "label": "按值特征与词库匹配\n列名/正则/样本值"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 4,
+          "label": "输出字段类型清单\n账号/金额/时间/地点等"
+        },
+        {
+          "id": "io2",
+          "col": 1.2,
+          "row": 5,
+          "shape": "io",
+          "label": "用户选择脱敏策略"
+        },
+        {
+          "id": "p4",
+          "col": 3.2,
+          "row": 5,
+          "label": "保留格式 / 掩码 /\n替换 / 删除"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 6,
+          "shape": "decision",
+          "label": "需要密钥？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "p5",
+          "col": 3.2,
+          "row": 6,
+          "label": "校验密钥与词库设置"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 7,
+          "label": "生成字段策略表 FieldPolicy"
+        },
+        {
+          "id": "t1",
+          "col": 1.2,
+          "row": 8,
+          "shape": "store",
+          "label": "保存策略与词库配置"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 9,
+          "shape": "terminal",
+          "label": "返回策略结果"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "p2",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "p2",
+          "to": "p3",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d1",
+          "to": "p3",
+          "label": "否"
+        },
+        {
+          "from": "p3",
+          "to": "io2"
+        },
+        {
+          "from": "io2",
+          "to": "p4",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "dashed",
+          "label": "可选策略"
+        },
+        {
+          "from": "io2",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "p5",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "p5",
+          "to": "p6",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d2",
+          "to": "p6",
+          "label": "否"
+        },
+        {
+          "from": "p6",
+          "to": "t1"
+        },
+        {
+          "from": "t1",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    },
+    {
+      "file": "fig08-图8-本地脱敏执行与Vault流程图.png",
+      "caption": "图8 本地脱敏执行和 Vault 模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "只读逐行读取源文件"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 2,
+          "label": "按 FieldPolicy 定位敏感列"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 3,
+          "shape": "decision",
+          "label": "命中敏感值？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "p3",
+          "col": 3.2,
+          "row": 3,
+          "label": "原样写入输出行"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 4,
+          "shape": "decision",
+          "label": "Vault 已有映射？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "p4",
+          "col": 3.2,
+          "row": 4,
+          "label": "复用既有脱敏值\n保证一致性"
+        },
+        {
+          "id": "p5",
+          "col": 1.2,
+          "row": 5,
+          "label": "按策略生成脱敏值"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 6,
+          "shape": "store",
+          "label": "原值↔脱敏值写入 Vault\n（任务级保护信息）"
+        },
+        {
+          "id": "p7",
+          "col": 1.2,
+          "row": 7,
+          "shape": "doc",
+          "label": "写出脱敏输出文件（新文件）"
+        },
+        {
+          "id": "d3",
+          "col": 1.2,
+          "row": 8,
+          "shape": "decision",
+          "label": "源文件被修改？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "nt",
+          "col": 3.2,
+          "row": 8,
+          "shape": "comment",
+          "label": "约束：源文件全程只读，\n输出文件独立生成"
+        },
+        {
+          "id": "p8",
+          "col": 1.2,
+          "row": 9,
+          "shape": "store",
+          "label": "记录操作日志与审计日志"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 10,
+          "shape": "io",
+          "label": "输出脱敏结果统计"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 11,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "p2"
+        },
+        {
+          "from": "p2",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "p3",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "p3",
+          "to": "p7",
+          "fromSide": "r",
+          "toSide": "r"
+        },
+        {
+          "from": "d1",
+          "to": "d2",
+          "label": "是"
+        },
+        {
+          "from": "d2",
+          "to": "p4",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "p4",
+          "to": "p7",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d2",
+          "to": "p5",
+          "label": "否"
+        },
+        {
+          "from": "p5",
+          "to": "p6"
+        },
+        {
+          "from": "p6",
+          "to": "p7"
+        },
+        {
+          "from": "p7",
+          "to": "d3"
+        },
+        {
+          "from": "d3",
+          "to": "nt",
+          "fromSide": "r",
+          "toSide": "l",
+          "style": "dashed"
+        },
+        {
+          "from": "d3",
+          "to": "p8",
+          "label": "否（保持只读）"
+        },
+        {
+          "from": "p8",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        },
+        {
+          "shape": "comment",
+          "name": "注释（约束）"
+        }
+      ]
+    },
+    {
+      "file": "fig09-图9-CSV行为分析流程图.png",
+      "caption": "图9 CSV 行为分析模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "解析表头并映射字段角色"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 2,
+          "shape": "decision",
+          "label": "关键角色齐备？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "io1",
+          "col": 3.2,
+          "row": 2,
+          "shape": "io",
+          "label": "人工指定列语义"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 3,
+          "label": "构建 StructuredRow",
+          "w": 212,
+          "sub": "逐行 · SourceId / RowIndex"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 4,
+          "label": "构建 BehaviorEvent",
+          "w": 212,
+          "sub": "生成稳定 BehaviorId"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 5,
+          "shape": "decision",
+          "label": "字段解析失败？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "p4",
+          "col": 3.2,
+          "row": 5,
+          "label": "保留原文字段，不丢弃",
+          "w": 216,
+          "h": 98,
+          "sub": "RawAmount /\nRawDirection /\nRawTimeText"
+        },
+        {
+          "id": "p5",
+          "col": 1.2,
+          "row": 6,
+          "label": "构建 BehaviorIndex",
+          "w": 216,
+          "h": 98,
+          "sub": "ById / BySubject /\nByPair / ByType"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 7,
+          "label": "构建 BehaviorGraph",
+          "w": 212,
+          "sub": "节点度数·边次数与金额"
+        },
+        {
+          "id": "p7",
+          "col": 1.2,
+          "row": 8,
+          "label": "组装 AnalysisRun 并置状态"
+        },
+        {
+          "id": "io2",
+          "col": 1.2,
+          "row": 9,
+          "shape": "doc",
+          "label": "供表现层投影五个标签页"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 10,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "io1",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "io1",
+          "to": "p1",
+          "fromSide": "t",
+          "toSide": "r",
+          "style": "dashed",
+          "label": "重新映射"
+        },
+        {
+          "from": "d1",
+          "to": "p2",
+          "label": "是"
+        },
+        {
+          "from": "p2",
+          "to": "p3"
+        },
+        {
+          "from": "p3",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "p4",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "p4",
+          "to": "p5",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d2",
+          "to": "p5",
+          "label": "否"
+        },
+        {
+          "from": "p5",
+          "to": "p6"
+        },
+        {
+          "from": "p6",
+          "to": "p7"
+        },
+        {
+          "from": "p7",
+          "to": "io2"
+        },
+        {
+          "from": "io2",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        }
+      ]
+    },
+    {
+      "file": "fig10-图10-关系图Canvas流程图.png",
+      "caption": "图10 关系图 Canvas 模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "进入关系图标签页"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "读取 GraphNode 与 Edge"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 2,
+          "label": "网格布局计算初始坐标"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 3,
+          "label": "渲染节点 Border 与连线 Line"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 4,
+          "shape": "decision",
+          "label": "交互类型？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "a1",
+          "col": 0.2,
+          "row": 5,
+          "label": "左键拖动节点\n更新节点坐标"
+        },
+        {
+          "id": "a2",
+          "col": 1.2,
+          "row": 5,
+          "label": "中键平移 / 滚轮缩放\n更新视口"
+        },
+        {
+          "id": "a3",
+          "col": 2.2,
+          "row": 5,
+          "label": "适配：算边界居中\n重置：恢复网格布局"
+        },
+        {
+          "id": "p4",
+          "col": 1.2,
+          "row": 6.1,
+          "label": "仅重绘，不重新执行分析"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 7.1,
+          "shape": "decision",
+          "label": "选中节点？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "io1",
+          "col": 3.2,
+          "row": 7.1,
+          "shape": "io",
+          "label": "联动行为明细行"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 8.1,
+          "shape": "terminal",
+          "label": "保持当前视图"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "p2"
+        },
+        {
+          "from": "p2",
+          "to": "p3"
+        },
+        {
+          "from": "p3",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "a1",
+          "fromSide": "b",
+          "toSide": "t",
+          "label": "拖动"
+        },
+        {
+          "from": "d1",
+          "to": "a2",
+          "fromSide": "b",
+          "toSide": "t",
+          "label": "平移/缩放"
+        },
+        {
+          "from": "d1",
+          "to": "a3",
+          "fromSide": "b",
+          "toSide": "t",
+          "label": "适配/重置"
+        },
+        {
+          "from": "a1",
+          "to": "p4",
+          "fromSide": "b",
+          "toSide": "t"
+        },
+        {
+          "from": "a2",
+          "to": "p4",
+          "fromSide": "b",
+          "toSide": "t"
+        },
+        {
+          "from": "a3",
+          "to": "p4",
+          "fromSide": "b",
+          "toSide": "t"
+        },
+        {
+          "from": "p4",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "io1",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "io1",
+          "to": "e",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d2",
+          "to": "e",
+          "label": "否"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        }
+      ]
+    },
+    {
+      "file": "fig11-图11-鉴别规则R001-R006流程图.png",
+      "caption": "图11 R001~R006 规则模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始（AnalysisRun 就绪）"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "载入规则清单与版本号"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 2,
+          "shape": "predefined",
+          "label": "取下一条规则 Ri"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 3,
+          "shape": "io",
+          "label": "载入参数：时间窗/阈值"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 4,
+          "label": "按实体聚合行为事件"
+        },
+        {
+          "id": "p4",
+          "col": 1.2,
+          "row": 5,
+          "label": "计算次数/金额/时段/地点"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 6,
+          "shape": "decision",
+          "label": "达到阈值？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "p5",
+          "col": 3.2,
+          "row": 6,
+          "label": "记录 ConsideredCount\n与 SkippedCount"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 7,
+          "label": "生成 IdentificationFinding",
+          "w": 216,
+          "sub": "实体/证据/时间窗/分数"
+        },
+        {
+          "id": "p7",
+          "col": 1.2,
+          "row": 8,
+          "label": "写入 AnalysisRuleResult",
+          "w": 216,
+          "sub": "编号/版本/状态/命中数"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 9,
+          "shape": "decision",
+          "label": "还有下一条规则？",
+          "w": 176,
+          "h": 76
+        },
+        {
+          "id": "io2",
+          "col": 1.2,
+          "row": 10,
+          "shape": "doc",
+          "label": "Finding 供报告与证据回溯"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 11,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "p2"
+        },
+        {
+          "from": "p2",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "p3"
+        },
+        {
+          "from": "p3",
+          "to": "p4"
+        },
+        {
+          "from": "p4",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "p5",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "p5",
+          "to": "p7",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d1",
+          "to": "p6",
+          "label": "是"
+        },
+        {
+          "from": "p6",
+          "to": "p7"
+        },
+        {
+          "from": "p7",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "p2",
+          "fromSide": "l",
+          "toSide": "l",
+          "style": "dashed",
+          "label": "是（循环）"
+        },
+        {
+          "from": "d2",
+          "to": "io2",
+          "label": "否"
+        },
+        {
+          "from": "io2",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "predefined",
+          "name": "预定义过程"
+        }
+      ]
+    },
+    {
+      "file": "fig12-图12-报告审计日志任务流程图.png",
+      "caption": "图12 分析报告、审计日志、操作日志和任务模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "开始"
+        },
+        {
+          "id": "p1",
+          "col": 1.2,
+          "row": 1,
+          "label": "汇总运行编号与数据范围"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 2,
+          "label": "统计行为与关系图摘要"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 3,
+          "label": "合并规则结果与 Finding"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 4,
+          "shape": "doc",
+          "label": "生成分析报告"
+        },
+        {
+          "id": "p4",
+          "col": 1.2,
+          "row": 5,
+          "shape": "store",
+          "label": "写审计日志（关键操作）"
+        },
+        {
+          "id": "p5",
+          "col": 1.2,
+          "row": 6,
+          "shape": "store",
+          "label": "写操作日志（步骤与耗时）"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 7,
+          "shape": "store",
+          "label": "更新任务清单与批次状态"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 8,
+          "shape": "decision",
+          "label": "用户检索/筛选？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "p7",
+          "col": 3.2,
+          "row": 8,
+          "label": "按条件过滤并分页展示"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 9,
+          "shape": "decision",
+          "label": "需要导出？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "io2",
+          "col": 3.2,
+          "row": 9,
+          "shape": "io",
+          "label": "导出报告/日志文件"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 10,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "p1"
+        },
+        {
+          "from": "p1",
+          "to": "p2"
+        },
+        {
+          "from": "p2",
+          "to": "p3"
+        },
+        {
+          "from": "p3",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "p4"
+        },
+        {
+          "from": "p4",
+          "to": "p5"
+        },
+        {
+          "from": "p5",
+          "to": "p6"
+        },
+        {
+          "from": "p6",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "p7",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "p7",
+          "to": "d2",
+          "fromSide": "l",
+          "toSide": "r",
+          "straight": true
+        },
+        {
+          "from": "d1",
+          "to": "d2",
+          "label": "否"
+        },
+        {
+          "from": "d2",
+          "to": "io2",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "是"
+        },
+        {
+          "from": "io2",
+          "to": "e",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d2",
+          "to": "e",
+          "label": "否"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    },
+    {
+      "file": "fig13-图13-词库管理与密钥设置流程图.png",
+      "caption": "图13 词库管理和密钥设置模块流程图",
+      "nodes": [
+        {
+          "id": "s",
+          "col": 1.2,
+          "row": 0,
+          "shape": "terminal",
+          "label": "打开设置页面"
+        },
+        {
+          "id": "io1",
+          "col": 1.2,
+          "row": 1,
+          "shape": "store",
+          "label": "加载本地词库与密钥配置"
+        },
+        {
+          "id": "d1",
+          "col": 1.2,
+          "row": 2,
+          "shape": "decision",
+          "label": "配置已存在？",
+          "w": 150,
+          "h": 76
+        },
+        {
+          "id": "p1",
+          "col": 3.2,
+          "row": 2,
+          "label": "初始化空词库与默认策略"
+        },
+        {
+          "id": "p2",
+          "col": 1.2,
+          "row": 3,
+          "label": "新增 / 编辑 / 删除词条"
+        },
+        {
+          "id": "d2",
+          "col": 1.2,
+          "row": 4,
+          "shape": "decision",
+          "label": "词条校验通过？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "io2",
+          "col": 3.2,
+          "row": 4,
+          "shape": "io",
+          "label": "提示为空/重复/超长"
+        },
+        {
+          "id": "p3",
+          "col": 1.2,
+          "row": 5,
+          "label": "设置脱敏密钥"
+        },
+        {
+          "id": "d3",
+          "col": 1.2,
+          "row": 6,
+          "shape": "decision",
+          "label": "密钥强度合规？",
+          "w": 168,
+          "h": 76
+        },
+        {
+          "id": "p4",
+          "col": 3.2,
+          "row": 6,
+          "label": "拒绝保存并提示要求"
+        },
+        {
+          "id": "p5",
+          "col": 1.2,
+          "row": 7,
+          "shape": "store",
+          "label": "加密保存到本地配置"
+        },
+        {
+          "id": "p6",
+          "col": 1.2,
+          "row": 8,
+          "label": "刷新识别模块词库缓存"
+        },
+        {
+          "id": "io3",
+          "col": 1.2,
+          "row": 9,
+          "shape": "doc",
+          "label": "词库/密钥供识别与脱敏调用"
+        },
+        {
+          "id": "e",
+          "col": 1.2,
+          "row": 10,
+          "shape": "terminal",
+          "label": "结束"
+        }
+      ],
+      "edges": [
+        {
+          "from": "s",
+          "to": "io1"
+        },
+        {
+          "from": "io1",
+          "to": "d1"
+        },
+        {
+          "from": "d1",
+          "to": "p1",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "p1",
+          "to": "p2",
+          "fromSide": "b",
+          "toSide": "r"
+        },
+        {
+          "from": "d1",
+          "to": "p2",
+          "label": "是"
+        },
+        {
+          "from": "p2",
+          "to": "d2"
+        },
+        {
+          "from": "d2",
+          "to": "io2",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "io2",
+          "to": "p2",
+          "fromSide": "t",
+          "toSide": "r",
+          "style": "dashed",
+          "label": "修正后重试"
+        },
+        {
+          "from": "d2",
+          "to": "p3",
+          "label": "是"
+        },
+        {
+          "from": "p3",
+          "to": "d3"
+        },
+        {
+          "from": "d3",
+          "to": "p4",
+          "fromSide": "r",
+          "toSide": "l",
+          "label": "否"
+        },
+        {
+          "from": "p4",
+          "to": "p3",
+          "fromSide": "t",
+          "toSide": "r",
+          "style": "dashed",
+          "label": "重新设置"
+        },
+        {
+          "from": "d3",
+          "to": "p5",
+          "label": "是"
+        },
+        {
+          "from": "p5",
+          "to": "p6"
+        },
+        {
+          "from": "p6",
+          "to": "io3"
+        },
+        {
+          "from": "io3",
+          "to": "e"
+        }
+      ],
+      "legend": [
+        {
+          "shape": "terminal",
+          "name": "起止"
+        },
+        {
+          "shape": "process",
+          "name": "处理"
+        },
+        {
+          "shape": "decision",
+          "name": "判断"
+        },
+        {
+          "shape": "io",
+          "name": "输入/输出"
+        },
+        {
+          "shape": "doc",
+          "name": "文档"
+        },
+        {
+          "shape": "store",
+          "name": "存储"
+        }
+      ]
+    }
+  ]
+}
