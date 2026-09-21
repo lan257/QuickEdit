@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "target": {
+    "name": "AGENTS.md",
+    "size": 3539,
+    "modifiedTime": 1789783120538
+  },
+  "updatedAt": "2026-09-19T02:30:00.000Z",
+  "annotations": [
+    {
+      "id": "b1c7d0a1-3f2e-4c8a-9d65-7a1b2c3d4e5f",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: claude-code, 2026-09-19] 背景记录：署名规范第 2 条最初把「tags 加入 Agent 标签」也列为区分手段，随后又在正文补充了「Agent 标签不得作为区分手段（用户也会使用该标签）」的说明。用户指出后已修正：用户本人也会用 Agent 标签打批注，标签无法区分来源，故区分手段只保留 text 署名与 source 字段，正文不再解释原因。",
+      "createdAt": "2026-09-19T04:20:00.000Z",
+      "updatedAt": "2026-09-19T04:20:00.000Z"
+    },
+    {
+      "id": "d09f01fe-90c7-487a-a37a-18d1da50d5e6",
+      "scope": "text-range",
+      "locator": {
+        "end": 508,
+        "start": 494
+      },
+      "anchor": {
+        "prefix": "：某处内容被用户（或 agent）纠正后，重新输出时正文只写正确结果；\"",
+        "quote": "之前错在哪、为什么不能用 X",
+        "suffix": "\"之类的纠正性说明一律放入批注，不得残留在正文。\n\n**反例（禁止）**"
+      },
+      "status": "resolved",
+      "tags": [],
+      "text": "新增：自己在上一步改了什么，是什么理解\n这些都放在批注里。",
+      "createdAt": "2026-09-19T02:02:39.327Z",
+      "updatedAt": "2026-09-19T02:30:00.000Z"
+    },
+    {
+      "id": "06a4a50a-e4b1-4149-9374-1d2c4ca7bfc8",
+      "scope": "text-range",
+      "locator": {
+        "end": 532,
+        "start": 459
+      },
+      "anchor": {
+        "prefix": "，写入对应 `.qnote` 批注文件，不进正文。\n\n**纠错规则**：",
+        "quote": "某处内容被用户（或 agent）纠正后，重新输出时正文只写正确结果；\"之前错在哪、为什么不能用 X\"之类的纠正性说明一律放入批注，不得残留在正文。",
+        "suffix": "\n\n**反例（禁止）**：用户指出\"做辣椒炒肉不应放红烧肉\"之后，正文从"
+      },
+      "status": "resolved",
+      "tags": [],
+      "text": "效果是看正文就好像是一次性生成的，没有任何中间过程的修正，也就是说修正和对修正的理解之类的东西不要放在正文里",
+      "createdAt": "2026-09-19T02:04:22.474Z",
+      "updatedAt": "2026-09-19T02:30:00.000Z"
+    }
+  ]
+}
