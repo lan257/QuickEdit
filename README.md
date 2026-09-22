@@ -174,12 +174,13 @@ V2 承载新的文件能力与尚未充分验证的工作流。当前实现状�
 - PPTX 是文字抽取视图，不还原母版、动画与图片；
 - 大文本与大 CSV 为只读，搜索只在已加载部分生效。
 
-V2 backlog：
+V2 backlog（单一入口为 `docs/QuickEdit_Undeveloped_v2.md`，其 §11 状态总表、§12 复验待办、§13 探索方向）：
 
 - MCP Bridge（`quickedit-mcp` stdio + 本地 IPC），让 Agent 直接调用 review.begin / track / capture / get / history；审批动作仍只在界面完成；
 - SheetJS 解析移入 Web Worker；超大 CSV 分段只读加载；
 - MCP sidecar 随安装包分发；
-- 崩溃恢复与自动保存草稿；外部修改冲突检测与简单合并；轻量 Workspace 搜索。
+- 崩溃恢复与自动保存草稿；外部修改冲突检测与简单合并；轻量 Workspace 搜索；
+- 2026-09-22 复验待办 6 条（设置项回填、运行按钮位置、侧栏可拉伸、暗色品牌区文字、重命名预填、上一个/下一个文档快捷键）。
 
 QuickEdit 不默认演进为：
 
@@ -246,11 +247,17 @@ pnpm tauri build
 QuickEdit/
 ├── index.html              # 主界面
 ├── src/
-│   ├── main.ts             # UI / 状态逻辑
-│   ├── styles.css          # 样式
+│   ├── main.ts             # 控制器：状态、视图切换、快捷键
+│   ├── core/               # 类型、HandlerRegistry、路径/格式化工具
+│   ├── editor/             # CodeMirror 编辑器封装
+│   ├── annotations/        # 批注服务、锚点、各视图渲染器、面板 UI
+│   ├── features/           # 终端、Runner、HTML 预览、审阅
+│   ├── handlers/           # 各格式 Handler（按需动态加载）
+│   ├── ui/                 # DOM 元素、视图切换、菜单、提示
+│   ├── styles.css          # 样式与主题 token
 │   └── QuickEdit_Config_Help.md
 ├── src-tauri/
-│   ├── src/lib.rs          # Rust command 层与终端实现
+│   ├── src/                # lib.rs 装配；commands / services / models / windows 分层
 │   ├── tauri.conf.json     # Tauri 配置
 │   ├── capabilities/       # 权限配置
 │   └── windows/             # 安装/卸载钩子
@@ -273,7 +280,10 @@ QuickEdit/
 | `设计文档/QuickEdit_Design_Document.md` | 总体设计与架构文档 |
 | `设计文档/QuickEdit_v2_Plus_Requirements_Design_Roadmap.md` | v2.0+ 需求设计与演进路线 |
 | `设计文档/QuickEdit_Annotation_V2_Requirements_Design.md` | Annotation V2 设计 |
+| `设计文档/QuickEdit_Annotation_V2_1_Content_First_Requirements_Design.md` | Annotation V2.1 内容优先批注设计（已实现） |
+| `设计文档/QuickEdit_V2_Exploration_Overnight_Implementation_Design.md` | v2 探索版需求与实施设计（Phase 0–9，本轮已实现部分的直接依据） |
 | `设计文档/QuickEdit_Agent_Change_Review_MCP_Requirements_Design.md` | Agent Change Review 与 MCP Bridge 设计 |
+| `设计文档/需求零碎记录.md` | 需求原始记录（逐条状态见待开发文档） |
 
 ## 版本与验证
 

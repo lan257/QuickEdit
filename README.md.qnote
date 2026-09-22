@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "target": {
+    "name": "README.md",
+    "size": 12750,
+    "modifiedTime": 1790064827055
+  },
+  "updatedAt": "2026-09-22T08:42:00.000Z",
+  "annotations": [
+    {
+      "id": "abcf0f31-5425-4d5e-17c6-f04860279531",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-22] 本次改动：项目结构段补全前端分层目录并把 `src-tauri/src/lib.rs` 的描述改为「装配 + 分层」；文档索引补 3 行（v2 探索版实施设计、Annotation V2.1 设计、需求零碎记录）；「V2 backlog」改为以 `docs/QuickEdit_Undeveloped_v2.md` 为单一入口并列出要点，避免 README 与待开发文档两处漂移。",
+      "createdAt": "2026-09-22T08:42:00.000Z",
+      "updatedAt": "2026-09-22T08:42:00.000Z"
+    },
+    {
+      "id": "b4e2a7c9-1f63-4d0a-9c58-2e7ad0f61b10",
+      "scope": "general",
+      "status": "open",
+      "tags": [
+        "待确认"
+      ],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-22] 待你决定：本轮已实现能力（图片、HTML、CSV、PPTX/DOC 抽取、大文件分批、审阅、暗色主题）现在同时写在 README「V2」小节和待开发文档 §11 状态总表里。README 面向使用者、backlog 面向排期，是否要把 README 那段进一步压缩成两三句，只留指向 §11 的链接？",
+      "createdAt": "2026-09-22T08:42:00.000Z",
+      "updatedAt": "2026-09-22T08:42:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "target": {
+    "name": "需求零碎记录.md",
+    "size": 1482,
+    "modifiedTime": 1790064849007
+  },
+  "updatedAt": "2026-09-22T08:38:00.000Z",
+  "annotations": [
+    {
+      "id": "49cd6eec-49eb-45f4-8fb0-c4f6475db5e3",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-22] 原文逐字留档（改动前全文为无状态标记的编号列表）：1. 图片支持预览；2. http静态预览和文本编辑；3. doc支持预览；4. ppt支持预览；5. csv支持预览和编辑；6. bat、exe、ps1支持直接终端运行，bat、ps1直接编辑；7. 其他脚本支持自定义配置运行命令；8. 大文件多次懒加载；9. agent审批mcp工具；10. 跳转更流畅；11. 暗色主体。本次只补逐条状态并把新增待办指向待开发文档。",
+      "createdAt": "2026-09-22T08:38:00.000Z",
+      "updatedAt": "2026-09-22T08:38:00.000Z"
+    },
+    {
+      "id": "697ed8d5-eee3-4d7b-ce3d-989ae140f428",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-22] 用词规范化说明（不是需求变更）：第 2 条「http静态预览」在正文里写作「HTML 静态预览」，第 11 条「暗色主体」按上下文写作「暗色主题」。若你希望保留原字面写法，说一声即可回退。",
+      "createdAt": "2026-09-22T08:38:00.000Z",
+      "updatedAt": "2026-09-22T08:38:00.000Z"
+    }
+  ]
+}
