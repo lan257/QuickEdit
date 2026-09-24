@@ -145,11 +145,19 @@ impl Default for WorkspaceConfig {
 #[serde(rename_all = "camelCase", default)]
 pub struct AppearanceConfig {
     pub theme: String,
+    pub background: String,
+    pub background_opacity: u8,
+    pub content_card: bool,
 }
 
 impl Default for AppearanceConfig {
     fn default() -> Self {
-        Self { theme: "light".to_string() }
+        Self {
+            theme: "light".to_string(),
+            background: "none".to_string(),
+            background_opacity: 26,
+            content_card: true,
+        }
     }
 }
 
@@ -269,5 +277,15 @@ mod tests {
             .extensions
             .iter()
             .any(|item| item == ".md"));
+    }
+
+    #[test]
+    fn old_config_without_appearance_fields_falls_back_to_defaults() {
+        let parsed: AppConfig =
+            serde_json::from_str(r#"{"version":1,"appearance":{"theme":"dark"}}"#).expect("旧配置应能解析");
+        assert_eq!(parsed.appearance.theme, "dark");
+        assert_eq!(parsed.appearance.background, "none");
+        assert_eq!(parsed.appearance.background_opacity, 26);
+        assert!(parsed.appearance.content_card);
     }
 }

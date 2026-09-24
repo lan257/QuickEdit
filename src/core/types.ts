@@ -89,6 +89,9 @@ export interface AppConfig {
   };
   appearance: {
     theme: ThemeMode;
+    background: string;
+    backgroundOpacity: number;
+    contentCard: boolean;
   };
   runners: RunnerConfig[];
 }
@@ -184,6 +187,6 @@ export const fallbackConfig: AppConfig = {
   annotations: { enabled: true, extension: ".qnote" },
   workspace: { restoreLastSession: true },
   shell: { contextMenu: true, openWith: true },
-  appearance: { theme: "light" },
+  appearance: { theme: "light", background: "none", backgroundOpacity: 26, contentCard: true },
   runners: [],
 };

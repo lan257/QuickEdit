@@ -85,6 +85,7 @@ import {
   treeElement, treeSearchInput, treeSortSelect,
   winCloseButton, winControlsElement, winMaximizeButton, winMinimizeButton, workareaElement, contentElement,
   helpContentElement, helpOverlayElement, confirmCloseInput, annotationEnabledInput, closeNotesButton, helpCloseButton,
+  backgroundOpacityInput, backgroundOpacityValueElement, backgroundPickButton, backgroundSwatchesElement, contentCardInput,
 } from "./ui/elements";
 import { hideToast, showToast } from "./ui/toast";
 import { hideMenu, showMenu } from "./ui/context-menu";
@@ -94,6 +95,8 @@ import { activeDocumentHandler, disposeActiveHandler, hasHandler, openWithHandle
 import { registerFormatHandlers } from "./handlers/index";
 import { buildRunPlan, isRunnable } from "./features/runners/runner-service";
 import { decideOpenMode, TEXT_CHUNK_BYTES } from "./core/open-decision";
+import { WALLPAPERS, isWallpaperPath, surfaceAlpha, wallpaperCss, wallpaperMime } from "./core/appearance";
+import { readFileBytes } from "./core/binary-file";
 import { renderHtmlPreviewDocument } from "./features/html-preview/html-preview";
 import { createTerminalFeature } from "./features/terminal/terminal-feature";
 import { createReviewPanel } from "./features/review/review-panel";
@@ -123,6 +126,8 @@ function applyTheme(mode: ThemeMode): void {
   themeSelect.value = mode;
   updateThemeCards(mode);
   themeColorMeta?.setAttribute("content", resolved === "dark" ? "#151922" : "#eef1f6");
+  // 预设壁纸分深浅两套，主题变了要重新取值。
+  void applyAppearance();
 }
 
 // 设置弹窗里的即时预览：真正落盘要等用户点“保存”。
@@ -133,6 +138,46 @@ function requestTheme(mode: ThemeMode): void {
 systemDarkQuery.addEventListener("change", () => {
   if (pendingTheme === "system") applyTheme("system");
 });
+
+type Appearance = AppConfig["appearance"];
+
+const wallpaperUrls = new Map<string, string>();
+let previewAppearance: Appearance | null = null;
+let appearanceTask = 0;
+
+function currentAppearance(): Appearance {
+  return previewAppearance ?? config.appearance;
+}
+
+async function wallpaperImageValue(value: string): Promise<string> {
+  const preset = wallpaperCss(value, document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  if (preset) return preset;
+  if (!isWallpaperPath(value) || !hasTauriRuntime()) return "none";
+  let url = wallpaperUrls.get(value);
+  if (!url) {
+    try {
+      const bytes = await readFileBytes(value);
+      url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type: wallpaperMime(value) }));
+      wallpaperUrls.set(value, url);
+    } catch {
+      return "none";
+    }
+  }
+  return `url("${url}")`;
+}
+
+// 壁纸与可见度都落在根元素变量上，样式表只消费变量，主题切换时不会互相覆盖。
+async function applyAppearance(appearance: Appearance = currentAppearance()): Promise<void> {
+  const task = ++appearanceTask;
+  const enabled = appearance.background !== "none";
+  const image = enabled ? await wallpaperImageValue(appearance.background) : "none";
+  if (task !== appearanceTask) return;
+  const root = document.documentElement;
+  root.dataset.card = appearance.contentCard ? "on" : "off";
+  root.dataset.wallpaper = enabled ? "on" : "off";
+  root.style.setProperty("--surface-alpha", String(enabled ? surfaceAlpha(appearance.backgroundOpacity) : 1));
+  root.style.setProperty("--bg-image", image);
+}
 
 
 let config = fallbackConfig;
@@ -1657,6 +1702,60 @@ function closeHelp(): void {
   helpOverlayElement.classList.add("hidden");
 }
 
+function renderBackgroundSwatches(): void {
+  const appearance = currentAppearance();
+  const theme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  const items: Array<{ value: string; label: string; image: string | null }> = [
+    { value: "none", label: "无背景", image: null },
+    ...WALLPAPERS.map((preset) => ({ value: preset.id, label: preset.label, image: wallpaperCss(preset.id, theme) })),
+  ];
+  if (isWallpaperPath(appearance.background)) {
+    const url = wallpaperUrls.get(appearance.background);
+    items.push({ value: appearance.background, label: "自选图片", image: url ? `url("${url}")` : null });
+  }
+  backgroundSwatchesElement.replaceChildren(...items.map((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `bg-swatch${appearance.background === item.value ? " active" : ""}`;
+    if (item.image) button.style.backgroundImage = item.image;
+    button.textContent = item.label;
+    button.title = item.label;
+    button.addEventListener("click", () => setPreviewAppearance({ background: item.value }));
+    return button;
+  }));
+}
+
+function updateBackgroundControls(): void {
+  const appearance = currentAppearance();
+  backgroundOpacityInput.value = String(appearance.backgroundOpacity);
+  backgroundOpacityValueElement.textContent = `${appearance.backgroundOpacity}%`;
+  backgroundOpacityInput.disabled = appearance.background === "none";
+  contentCardInput.checked = appearance.contentCard;
+  renderBackgroundSwatches();
+}
+
+// 设置里的背景改动先落在预览对象上，取消即回滚，保存才写进配置。
+function setPreviewAppearance(patch: Partial<Appearance>): void {
+  previewAppearance = { ...currentAppearance(), ...patch };
+  updateBackgroundControls();
+  void applyAppearance();
+}
+
+async function pickWallpaperImage(): Promise<void> {
+  if (!hasTauriRuntime()) {
+    showToast("浏览器预览不能选择本地图片，请在桌面端使用。", true);
+    return;
+  }
+  const selected = await open({
+    title: "选择背景图片",
+    multiple: false,
+    directory: false,
+    filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"] }],
+  });
+  if (!selected || Array.isArray(selected)) return;
+  setPreviewAppearance({ background: selected, backgroundOpacity: Math.max(45, currentAppearance().backgroundOpacity) });
+}
+
 function openSettings(): void {
   textExtensionsInput.value = config.handlers.text.extensions.join(", ");
   maxTextSizeInput.value = String(Math.max(1, config.editor.maxTextFileSizeMb));
@@ -1666,6 +1765,8 @@ function openSettings(): void {
   shellContextMenuInput.checked = config.shell.contextMenu;
   shellOpenWithInput.checked = config.shell.openWith;
   runnersInput.value = config.runners.length > 0 ? JSON.stringify(config.runners, null, 2) : "";
+  previewAppearance = { ...config.appearance };
+  updateBackgroundControls();
   applyTheme(config.appearance.theme);
   settingsOverlayElement.classList.remove("hidden");
   window.setTimeout(() => textExtensionsInput.focus(), 0);
@@ -1680,11 +1781,14 @@ function restoreSettingsDefaults(): void {
   shellContextMenuInput.checked = fallbackConfig.shell.contextMenu;
   shellOpenWithInput.checked = fallbackConfig.shell.openWith;
   runnersInput.value = "";
+  previewAppearance = { ...fallbackConfig.appearance };
+  updateBackgroundControls();
   requestTheme(fallbackConfig.appearance.theme);
 }
 
-// 取消时回到已保存的主题；保存路径上 config 已先更新，这里只是同一值重复应用。
+// 取消时回到已保存的外观；保存路径上 config 已先更新，这里只是同一值重复应用。
 function closeSettings(): void {
+  previewAppearance = null;
   applyTheme(config.appearance.theme);
   settingsOverlayElement.classList.add("hidden");
 }
@@ -1762,7 +1866,7 @@ async function saveSettings(): Promise<void> {
       openWith: shellOpenWithInput.checked,
     },
     appearance: {
-      ...config.appearance,
+      ...currentAppearance(),
       theme: pendingTheme,
     },
     runners,
@@ -2264,6 +2368,11 @@ function bindEvents(): void {
   themeLightButton.addEventListener("click", () => requestTheme("light"));
   themeDarkButton.addEventListener("click", () => requestTheme("dark"));
   themeSystemButton.addEventListener("click", () => requestTheme("system"));
+  backgroundPickButton.addEventListener("click", () => void pickWallpaperImage());
+  backgroundOpacityInput.addEventListener("input", () => {
+    setPreviewAppearance({ backgroundOpacity: Number.parseInt(backgroundOpacityInput.value, 10) || 0 });
+  });
+  contentCardInput.addEventListener("change", () => setPreviewAppearance({ contentCard: contentCardInput.checked }));
   findInputElement.addEventListener("input", refreshFindMatches);
   replaceInputElement.addEventListener("input", () => undefined);
   findCaseInput.addEventListener("change", refreshFindMatches);
