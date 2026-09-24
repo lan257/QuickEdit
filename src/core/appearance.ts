@@ -48,7 +48,7 @@ export function isWallpaperPath(value: string): boolean {
   return Boolean(value) && value !== "none" && !presetWallpaper(value);
 }
 
-export const MIN_SURFACE_ALPHA = 0.6;
+export const MIN_SURFACE_ALPHA = 0.45;
 
 const WALLPAPER_MIME: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -60,7 +60,8 @@ export function wallpaperMime(path: string): string {
   return dot >= 0 ? WALLPAPER_MIME[path.slice(dot)] || "application/octet-stream" : "application/octet-stream";
 }
 
-// 透明度滑杆 0–100 表示背景可见度：0 时表面完全不透明，100 时表面最透。
+// 背景可见度只作用于侧栏、批注面板与窗口边缘；正文卡片恒为实心纸面，
+// 否则壁纸会把正文染成一片糊色，卡片也就不成其为卡片。
 export function surfaceAlpha(opacity: number): number {
   const clamped = Math.min(100, Math.max(0, Number.isFinite(opacity) ? opacity : 0));
   return Number((1 - (clamped / 100) * (1 - MIN_SURFACE_ALPHA)).toFixed(3));
