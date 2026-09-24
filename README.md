@@ -6,7 +6,7 @@ QuickEdit 是一个 **Windows 优先、轻量、本地、快速的文件编辑�
 
 <p align="center">
   <a href="https://github.com/lan257/QuickEdit/releases">
-    <img src="https://img.shields.io/badge/QuickEdit-v2.1.0-5b6cf9" alt="QuickEdit v2.1.0" />
+    <img src="https://img.shields.io/badge/QuickEdit-v2.2.0-5b6cf9" alt="QuickEdit v2.2.0" />
   </a>
   <img src="https://img.shields.io/badge/platform-Windows-0078d4" alt="Windows" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="Private project" />
@@ -19,7 +19,7 @@ QuickEdit 是一个 **Windows 优先、轻量、本地、快速的文件编辑�
   <img src="docs/images/quickedit-terminal.png" alt="QuickEdit 内置终端界面" width="48%" />
 </p>
 
-> 展示图来自当前 `2.1.0` 代码，已对本机文件路径做脱敏处理。
+> 展示图来自 `2.1.0` 界面，已对本机文件路径做脱敏处理；`2.2.0` 新增页面背景与正文卡片，见「设置 · 页面背景与质感」。
 
 ## 为什么需要 QuickEdit
 
@@ -135,7 +135,7 @@ QuickEdit 不直接把批注写入原文件，而是使用同目录伴生的 `.q
 
 ### V1：稳定基础版本
 
-当前版本：**`2.1.0`**。
+当前版本：**`2.2.0`**。
 
 V1 定位为 QuickEdit 的稳定基础版本，重点是维护和完善已有能力：
 
@@ -184,7 +184,7 @@ V2 backlog（单一入口为 `docs/QuickEdit_Undeveloped_v2.md`，其 §11 状�
 - SheetJS 解析移入 Web Worker；超大 CSV 分段只读加载；
 - MCP sidecar 随安装包分发；
 - 崩溃恢复与自动保存草稿；外部修改冲突检测与简单合并；轻量 Workspace 搜索；
-- 2026-09-22/09-24 两轮复验待办共 9 条已全部实现，等待桌面端复验（清单见 `docs/QuickEdit_Undeveloped_v2.md` §12）。
+- 2026-09-22/09-24 三轮复验待办共 13 条已全部实现，随 `2.2.0` 发布（清单见 `docs/QuickEdit_Undeveloped_v2.md` §12）。
 
 QuickEdit 不默认演进为：
 
@@ -293,9 +293,9 @@ QuickEdit/
 
 当前版本号在以下文件保持一致：
 
-- `package.json`：`2.1.0`；
-- `src-tauri/tauri.conf.json`：`2.1.0`；
-- `src-tauri/Cargo.toml`：`2.1.0`。
+- `package.json`：`2.2.0`；
+- `src-tauri/tauri.conf.json`：`2.2.0`；
+- `src-tauri/Cargo.toml`：`2.2.0`。
 
 推荐在提交前执行：
 

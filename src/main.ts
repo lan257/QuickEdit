@@ -2539,7 +2539,7 @@ async function initialize(): Promise<void> {
   try {
     config = await invoke<AppConfig>("load_config");
     applyTheme(config.appearance.theme);
-    runtimeHintElement.textContent = "本地文件服务已连接 · V2.1";
+    runtimeHintElement.textContent = "本地文件服务已连接 · V2.2";
   } catch {
     config = fallbackConfig;
     applyTheme(config.appearance.theme);
