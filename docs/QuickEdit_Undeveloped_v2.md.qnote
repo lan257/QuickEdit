@@ -2,10 +2,10 @@
   "version": 2,
   "target": {
     "name": "QuickEdit_Undeveloped_v2.md",
-    "size": 24370,
-    "modifiedTime": 1790245843439
+    "size": 24673,
+    "modifiedTime": 1790254574886
   },
-  "updatedAt": "2026-09-24T11:40:00.000Z",
+  "updatedAt": "2026-09-24T13:10:00.000Z",
   "annotations": [
     {
       "id": "d2cbb043-c571-49cf-a3be-94e706a35abd",
@@ -99,9 +99,21 @@
       "status": "open",
       "tags": [],
       "source": "agent",
-      "text": "[Agent: qoder, 2026-09-24] 与 §13.2 原建议相反的取舍：磨砂 backdrop-filter 也用在了正文卡片上（原建议是「正文与表格区不做」）。理由是它只在 data-wallpaper=on 时才写入，未选背景时样式与性能与之前完全一致；选背景本身就是用户主动开启的效果。需要你在桌面端确认：开启背景后长文档滚动是否掉帧，若有掉帧就把 .content 的 blur 去掉、只保留侧栏与批注面板。",
+      "text": "[Agent: qoder, 2026-09-24] 磨砂与透明度范围已按用户复验纠正：最初把半透明和 backdrop-filter 也用在了正文卡片上，实测自选壁纸会把卡片染成一片米黄、卡片与背景失去区分；现已改回实心纸面（--paper 不透明），磨砂只保留在侧栏与批注面板。「背景可见度」因此只作用于侧栏、批注面板和窗口边缘，正文可读性不随滑杆变化。",
       "createdAt": "2026-09-24T11:40:00.000Z",
-      "updatedAt": "2026-09-24T11:40:00.000Z"
+      "updatedAt": "2026-09-24T13:10:00.000Z"
+    },
+    {
+      "id": "d8a1b4e6-2c95-4f7a-8b39-1e6d0c8f4a55",
+      "scope": "general",
+      "status": "open",
+      "tags": [
+        "根因"
+      ],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 设置弹窗滚不到底（用户读作「保存被删了」）的根因：.settings-modal 有 max-height、.modal 是 overflow:hidden，而 .settings-body 自己又写了 max-height: calc(100vh - 140px)；两套高度约束不联动，标题栏 min-height 108px 加上正文的 max-height 超出弹窗高度，正文的滚动视口被弹窗裁掉，吸底的「保存设置」落在裁切区之外，滚到底也看不见。已改为弹窗 flex 列、正文 flex:1 + min-height:0 自行滚动，并把弹窗 max-height 与遮罩 padding 对齐成 calc(100vh - 40px)。教训：往既有弹窗加内容必须同时验证最小窗口下原有控件仍然可达。",
+      "createdAt": "2026-09-24T13:10:00.000Z",
+      "updatedAt": "2026-09-24T13:10:00.000Z"
     }
   ]
 }
