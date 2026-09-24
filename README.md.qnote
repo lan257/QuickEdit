@@ -2,10 +2,10 @@
   "version": 2,
   "target": {
     "name": "README.md",
-    "size": 12750,
-    "modifiedTime": 1790064827055
+    "size": 13147,
+    "modifiedTime": 1790235583330
   },
-  "updatedAt": "2026-09-22T08:42:00.000Z",
+  "updatedAt": "2026-09-24T09:20:00.000Z",
   "annotations": [
     {
       "id": "abcf0f31-5425-4d5e-17c6-f04860279531",
@@ -28,6 +28,16 @@
       "text": "[Agent: qoder, 2026-09-22] 待你决定：本轮已实现能力（图片、HTML、CSV、PPTX/DOC 抽取、大文件分批、审阅、暗色主题）现在同时写在 README「V2」小节和待开发文档 §11 状态总表里。README 面向使用者、backlog 面向排期，是否要把 README 那段进一步压缩成两三句，只留指向 §11 的链接？",
       "createdAt": "2026-09-22T08:42:00.000Z",
       "updatedAt": "2026-09-22T08:42:00.000Z"
+    },
+    {
+      "id": "e6f0a3b1-7c24-4d8e-9a5b-1f3c6d8e0a27",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 本次改动：V2 已完成清单补图片新交互（指针锚点缩放、拖拽平移、双击切换）、侧栏可拖拽记忆、F5 重新加载、Alt+↑/↓ 文档切换、查找匹配高亮与换行风格保留；运行入口那句「右上角小型 Run 图标」已按实际位置改写为信息页按钮；V2 backlog 里 2026-09-22 的 6 条待办改为本轮 9 条已实现并指向 §12。应用内帮助 src/QuickEdit_Config_Help.md 同步补了快捷键与界面两段说明。",
+      "createdAt": "2026-09-24T09:20:00.000Z",
+      "updatedAt": "2026-09-24T09:20:00.000Z"
     }
   ]
 }
