@@ -2,10 +2,10 @@
   "version": 2,
   "target": {
     "name": "README.md",
-    "size": 13147,
-    "modifiedTime": 1790235583330
+    "size": 13367,
+    "modifiedTime": 1790245864666
   },
-  "updatedAt": "2026-09-24T09:20:00.000Z",
+  "updatedAt": "2026-09-24T11:40:00.000Z",
   "annotations": [
     {
       "id": "abcf0f31-5425-4d5e-17c6-f04860279531",
@@ -38,6 +38,16 @@
       "text": "[Agent: qoder, 2026-09-24] 本次改动：V2 已完成清单补图片新交互（指针锚点缩放、拖拽平移、双击切换）、侧栏可拖拽记忆、F5 重新加载、Alt+↑/↓ 文档切换、查找匹配高亮与换行风格保留；运行入口那句「右上角小型 Run 图标」已按实际位置改写为信息页按钮；V2 backlog 里 2026-09-22 的 6 条待办改为本轮 9 条已实现并指向 §12。应用内帮助 src/QuickEdit_Config_Help.md 同步补了快捷键与界面两段说明。",
       "createdAt": "2026-09-24T09:20:00.000Z",
       "updatedAt": "2026-09-24T09:20:00.000Z"
+    },
+    {
+      "id": "f1c4a8d2-3b6e-4f70-9a1d-8c25e6b70f31",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 本次改动：V2 已完成清单新增「页面背景」一条（4 款渐变预设 + 自选图片、背景可见度、侧栏/正文/批注磨砂、正文卡片可关）。应用内帮助 src/QuickEdit_Config_Help.md 的「界面」段同步补了背景与正文卡片两条说明。",
+      "createdAt": "2026-09-24T11:40:00.000Z",
+      "updatedAt": "2026-09-24T11:40:00.000Z"
     }
   ]
 }

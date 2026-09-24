@@ -2,10 +2,10 @@
   "version": 2,
   "target": {
     "name": "QuickEdit_Undeveloped_v2.md",
-    "size": 23576,
-    "modifiedTime": 1790235642784
+    "size": 24370,
+    "modifiedTime": 1790245843439
   },
-  "updatedAt": "2026-09-24T09:20:00.000Z",
+  "updatedAt": "2026-09-24T11:40:00.000Z",
   "annotations": [
     {
       "id": "d2cbb043-c571-49cf-a3be-94e706a35abd",
@@ -72,6 +72,36 @@
       "text": "[Agent: qoder, 2026-09-24] 本轮三处取舍：1）运行按钮移到编辑区工具栏后，不可编辑文件（典型是 .exe）会失去唯一运行入口，因此在对象信息页补了「在终端运行」，两处共用同一套运行计划；2）图片缩放从 transform: scale 改为 translate+scale 合成——旧方案不改变布局盒，放大后被裁掉的左上区域无论如何都滚不到；新方案舞台 overflow:hidden、平移量按图像与舞台尺寸差夹取，代价是低倍率下指针锚点会被夹取吃掉一部分；3）设置里运行器 JSON 无效时仍然整次保存失败并明确提示，不做「跳过运行器、保存其余项」，避免静默丢弃用户编辑。",
       "createdAt": "2026-09-24T09:20:00.000Z",
       "updatedAt": "2026-09-24T09:20:00.000Z"
+    },
+    {
+      "id": "a2d5e9c1-4f78-4b23-8e06-7c19d5a34b62",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 本次改动清单：抬头日期与状态同步；§11 新增「页面背景与正文卡片」行；§12 由 9 条扩到 12 条（新增设置弹窗底部条配色、页面背景、正文卡片）；§13.2 删去已落地项，只留间距 token 化、强调色自定义、磨砂强度三项，并补一条「自选背景模糊强度是否独立可调」的待定问题。",
+      "createdAt": "2026-09-24T11:40:00.000Z",
+      "updatedAt": "2026-09-24T11:40:00.000Z"
+    },
+    {
+      "id": "b3e6f0d2-5a89-4c34-9f17-8d20e6b45c73",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 视觉轮根因与坑：1）设置弹窗底部按钮条写死 rgba(248,250,252,.96)，没有暗色覆盖，所以深色下整条变白——已改为 --settings-footer 变量并在暗色块覆盖。2）.app 的壁纸用 background-image 承载，而暗色块里原有 `:root[data-theme=\"dark\"] .app, .main, .notes-panel { background: var(--panel) }` 用的是 background 简写，会把 background-image 一起清掉，导致暗色下壁纸完全不显示；现已拆成 background-color，并让 .main 透明、.notes-panel 交给 color-mix。3）卡片/侧栏半透明用 color-mix(in srgb, … calc(var(--surface-alpha) * 100%), transparent) 实现，Chromium 计算值会序列化成 color(srgb r g b / a)，写断言时不要按 rgba 前缀匹配。",
+      "createdAt": "2026-09-24T11:40:00.000Z",
+      "updatedAt": "2026-09-24T11:40:00.000Z"
+    },
+    {
+      "id": "c4f701e3-6b90-4d45-8a28-9e31f7c56d84",
+      "scope": "general",
+      "status": "open",
+      "tags": [],
+      "source": "agent",
+      "text": "[Agent: qoder, 2026-09-24] 与 §13.2 原建议相反的取舍：磨砂 backdrop-filter 也用在了正文卡片上（原建议是「正文与表格区不做」）。理由是它只在 data-wallpaper=on 时才写入，未选背景时样式与性能与之前完全一致；选背景本身就是用户主动开启的效果。需要你在桌面端确认：开启背景后长文档滚动是否掉帧，若有掉帧就把 .content 的 blur 去掉、只保留侧栏与批注面板。",
+      "createdAt": "2026-09-24T11:40:00.000Z",
+      "updatedAt": "2026-09-24T11:40:00.000Z"
     }
   ]
 }
