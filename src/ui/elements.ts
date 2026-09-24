@@ -5,6 +5,7 @@ export const $ = <T extends HTMLElement>(selector: string): T => {
 };
 
 export const treeElement = $("#tree");
+export const sidebarResizerElement = $("#sidebarResizer");
 export const fileCountElement = $("#fileCount");
 export const runtimeHintElement = $("#runtimeHint");
 export const docNameElement = $("#docName");

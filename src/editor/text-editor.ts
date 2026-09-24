@@ -1,6 +1,7 @@
 import { EditorState, Annotation, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { findHighlightField } from "./find-highlight";
 
 export interface TextEditorHandlers {
   onChange: () => void;
@@ -44,6 +45,7 @@ export class TextEditor {
   readonly view: EditorView;
   private lastText = "";
   private cached = "";
+  private fileLineEnding = "\n";
   private readonly = false;
   private readonly extraExtensions: Extension[];
   private readonly handlers: TextEditorHandlers;
@@ -65,6 +67,7 @@ export class TextEditor {
         keymap.of([...historyKeymap, ...defaultKeymap]),
         EditorView.lineWrapping,
         editorTheme,
+        findHighlightField,
         EditorState.readOnly.of(this.readonly),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
@@ -101,8 +104,9 @@ export class TextEditor {
   }
 
   loadText(text: string): void {
+    this.fileLineEnding = text.includes("\r\n") ? "\r\n" : text.includes("\r") ? "\r" : "\n";
     this.view.setState(this.buildState(text));
-    this.cached = text;
+    this.cached = this.view.state.doc.toString();
     this.lastText = text;
   }
 
@@ -110,6 +114,13 @@ export class TextEditor {
     if (this.cached) return this.cached;
     this.cached = this.view.state.doc.toString();
     return this.cached;
+  }
+
+  // CodeMirror 内部按 LF 存正文，所有编辑器偏移量都在这个坐标空间里；
+  // 写盘时还原文件原本的换行风格，避免一次编辑把 CRLF 文件整体改成 LF。
+  toFileText(): string {
+    const text = this.getText();
+    return this.fileLineEnding === "\n" ? text : text.replace(/\n/g, this.fileLineEnding);
   }
 
   get lastSavedText(): string {

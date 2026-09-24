@@ -23,6 +23,7 @@
             <div class="tip-card"><strong>快速操作</strong><br />左上角 Q：打开文档 / 新增工作区 / 设置<br />悬停文件夹：＋ 新建 · × 移除引用<br />点击文档：按需加载正文 · Ctrl+S 保存</div>
             <div id="runtimeHint" class="runtime-hint">正在连接本地文件服务…</div>
           </div>
+          <div id="sidebarResizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" title="拖动调整侧栏宽度，双击恢复默认"></div>
         </aside>
 
         <main class="main">
@@ -31,7 +32,6 @@
               <div class="heading-line"><h1 id="docName">未选择文档</h1><span id="modePill" class="pill">—</span></div>
               <div id="docMeta" class="document-meta">从左侧选择一个文档以开始</div>
             </div>
-            <div id="headerActions" class="header-actions"><button id="docRunButton" class="header-run hidden" type="button" title="在终端运行" aria-label="在终端运行">&#9654;</button></div>
             <div id="winControls" class="window-controls"><button id="winMinimize" class="win-btn" type="button" aria-label="最小化">&#x2013;</button><button id="winMaximize" class="win-btn" type="button" title="最大化/还原" aria-label="最大化/还原">&#x25A1;</button><button id="winClose" class="win-btn close" type="button" aria-label="关闭">&#xD7;</button></div>
           </header>
 
@@ -48,7 +48,7 @@
               <div id="loadingView" class="empty-view hidden"><div class="spinner"></div><strong>正在读取文档…</strong><span>正文按需加载，不扫描其他文件。</span></div>
               <section id="folderInfoPane" class="folder-info-pane hidden" aria-label="对象信息"></section>
                <div id="textPane" class="editor-pane hidden">
-                <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><span id="editorEncoding">UTF-8</span></div>
+                <div class="editor-toolbar"><span id="editorFileLabel">文本编辑</span><div class="editor-toolbar-right"><button id="docRunButton" class="editor-run hidden" type="button" title="在终端运行" aria-label="在终端运行">&#9654;</button><span id="editorEncoding">UTF-8</span></div></div>
                 <div id="textEditorHost" class="text-editor-host" aria-label="文本编辑器"></div>
               </div>
               <button id="annotationBubble" class="annotation-bubble hidden" type="button">+ 批注</button>

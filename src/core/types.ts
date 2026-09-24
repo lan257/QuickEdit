@@ -67,7 +67,7 @@ export interface RunnerConfig {
 export interface AppConfig {
   version: number;
   editor: {
-    maxTextFileSizeMB: number;
+    maxTextFileSizeMb: number;
     confirmBeforeCloseUnsaved: boolean;
   };
   handlers: {
@@ -166,7 +166,7 @@ export interface MenuItem {
 export const fallbackConfig: AppConfig = {
   version: 1,
   editor: {
-    maxTextFileSizeMB: 1,
+    maxTextFileSizeMb: 1,
     confirmBeforeCloseUnsaved: true,
   },
   handlers: {

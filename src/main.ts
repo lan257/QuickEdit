@@ -7,6 +7,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import MarkdownIt from "markdown-it";
 import configHelpMarkdown from "./QuickEdit_Config_Help.md?raw";
 import { TextEditor } from "./editor/text-editor";
+import { setFindHighlights } from "./editor/find-highlight";
+import { collectTextMatches, MAX_FIND_MATCHES } from "./editor/find-matches";
 import {
   annotationDamaged,
   annotationDocument,
@@ -77,7 +79,7 @@ import {
   noteTagFilterClearButton, notesButton, notesListElement, notesPanelElement,
   recoverNotesButton, replaceAllButton, replaceButton, replaceInputElement, restoreSessionInput, runnersInput,
   runtimeHintElement, settingsCancelButton, settingsCloseButton, settingsOverlayElement, settingsResetDefaultsButton,
-  settingsSaveButton, shellContextMenuInput, shellOpenWithInput, statusCursorElement, statusInfoElement,
+  settingsSaveButton, shellContextMenuInput, shellOpenWithInput, sidebarResizerElement, statusCursorElement, statusInfoElement,
   statusModeElement, statusPathElement, textEditorHostElement, textExtensionsInput,
   themeDarkButton, themeLightButton, themeSelect, themeSystemButton, toastCloseButton,
   treeElement, treeSearchInput, treeSortSelect,
@@ -144,6 +146,7 @@ let markdownPreviewHtml = "";
 let htmlPreviewRevision = -1;
 let findMatches: Array<{ start: number; end: number }> = [];
 let findMatchIndex = -1;
+let findMatchesCapped = false;
 let activeAnnotationId: string | null = null;
 let annotationLoading = false;
 let notesFilter: "all" | "open" = "all";
@@ -488,12 +491,14 @@ function showNodeMenu(node: TreeNode, x: number, y: number): void {
   const items: MenuItem[] = [];
   if (node.kind === "file") {
     items.push({ label: "打开", action: () => void openNode(node) });
+    items.push({ label: "重新加载", action: () => void reloadNode(node) });
     items.push({ label: "重命名", action: () => renameNode(node) });
     items.push({ label: "在资源管理器中打开", action: () => void revealNode(node) });
     items.push({ label: "复制文件路径", action: () => void copyPath(node.path) });
   } else {
     items.push({ label: node.expanded ? "折叠" : "展开", action: () => void toggleNode(node) });
     if (node.kind === "workspace" || node.kind === "folder") {
+      items.push({ label: "重新加载", action: () => void reloadNode(node) });
       items.push({ label: "重命名", action: () => renameNode(node) });
       items.push({ label: "在资源管理器中打开", action: () => void revealNode(node) });
       items.push({ label: "复制文件夹路径", action: () => void copyPath(node.path) });
@@ -511,6 +516,63 @@ function showAddMenu(node: TreeNode, x: number, y: number): void {
   if (node.kind !== "docs") items.push({ label: "新建文件夹", action: () => promptFolder(node) });
   items.push({ label: "新建文档", action: () => promptDocument(node) });
   showMenu(items, x, y);
+}
+
+// —— 重新加载：文件重读磁盘，文件夹只刷新自己的子节点 ——
+async function reloadNode(node: TreeNode): Promise<void> {
+  if (node.kind === "file") {
+    if (node.dirty && !window.confirm("当前文档有未保存修改，重新加载会丢弃它们，继续吗？")) return;
+    try {
+      await openNode(node);
+      showToast(`已重新加载 ${node.name}`);
+    } catch (error) {
+      showToast(failureMessage(error), true);
+    }
+    return;
+  }
+  try {
+    node.childrenLoaded = false;
+    node.expanded = false;
+    await loadChildren(node);
+    node.expanded = true;
+    renderTree();
+    if (activeNode?.id === node.id) {
+      renderFolderInfo(node);
+      updateHeader();
+    }
+    showToast(`已重新加载 ${node.name}`);
+  } catch (error) {
+    showToast(failureMessage(error), true);
+  }
+}
+
+// 按树中当前可见顺序取文档列表（含过滤与排序结果）。
+function visibleFiles(): TreeNode[] {
+  const files: TreeNode[] = [];
+  const walk = (node: TreeNode): void => {
+    for (const child of visibleChildren(node)) {
+      if (child.kind === "file") files.push(child);
+      else if (child.expanded) walk(child);
+    }
+  };
+  for (const root of roots) {
+    if (root.kind === "file") files.push(root);
+    else if (root.expanded) walk(root);
+  }
+  return files;
+}
+
+function stepDocument(direction: 1 | -1): void {
+  const files = visibleFiles();
+  if (files.length === 0) {
+    showToast("列表里还没有可切换的文档。", true);
+    return;
+  }
+  const current = activeNode ? files.findIndex((file) => file.id === activeNode?.id) : -1;
+  const next = current < 0
+    ? (direction > 0 ? 0 : files.length - 1)
+    : (current + direction + files.length) % files.length;
+  void openNode(files[next]);
 }
 
 function renderFolderInfo(node: TreeNode): void {
@@ -564,6 +626,7 @@ function showFileInfoView(node: TreeNode, kind: InfoViewKind, subtitle: string, 
   if (options?.retry) actions.push({ id: "retry", label: "重新尝试", primary: true, execute: () => void openNode(node) });
   if (options?.openAsText) actions.push({ id: "text", label: "以文本方式打开", primary: !options.retry, execute: () => void openNode(node, { forceText: true }) });
   if (options?.loadLarge) actions.push({ id: "large", label: "仍要分批只读加载", primary: true, execute: () => void openLargeText(node, true) });
+  if (isRunnable(node.extension, config.runners)) actions.push({ id: "run", label: "在终端运行", execute: () => void runDocument(node) });
   actions.push({ id: "system", label: "使用系统程序打开", primary: !options?.retry && !options?.openAsText && !options?.loadLarge, execute: () => void openWithSystemApp(node) });
   actions.push({ id: "copy", label: "复制位置", execute: () => void copyPath(node.path) });
   renderInfoView({
@@ -651,9 +714,7 @@ function updateRunButton(node: TreeNode | null): void {
   docRunButton.classList.toggle("hidden", !runnable);
 }
 
-async function runActiveDocument(): Promise<void> {
-  const node = activeNode;
-  if (!node || node.kind !== "file") return;
+async function runDocument(node: TreeNode): Promise<void> {
   const workspaceRoot = roots
     .map((root) => workspaceRootFor(node, root))
     .find((root): root is TreeNode => root !== null);
@@ -663,6 +724,12 @@ async function runActiveDocument(): Promise<void> {
     return;
   }
   await terminalFeature.runCommand(node, plan.shell, plan.command, directoryOf(node.path));
+}
+
+async function runActiveDocument(): Promise<void> {
+  const node = activeNode;
+  if (!node || node.kind !== "file") return;
+  await runDocument(node);
 }
 
 function isMarkdownNode(node: TreeNode | null): boolean {
@@ -1242,7 +1309,7 @@ let largeText: LargeTextSession | null = null;
 let largeTextTask = 0;
 
 function editableLimitBytes(): number {
-  return Math.max(1, config.editor.maxTextFileSizeMB) * 1024 * 1024;
+  return Math.max(1, config.editor.maxTextFileSizeMb) * 1024 * 1024;
 }
 
 function updateLargeTextStatus(): void {
@@ -1366,25 +1433,34 @@ function resetLargeText(): void {
   if (scroller) scroller.onscroll = null;
 }
 
+function updateFindHighlights(): void {
+  if (!textEditor) return;
+  const active = findMatches[findMatchIndex];
+  textEditor.view.dispatch({
+    effects: setFindHighlights.of(findMatches.map((match) => ({
+      start: match.start,
+      end: match.end,
+      active: Boolean(active && match.start === active.start && match.end === active.end),
+    }))),
+  });
+}
+
 function refreshFindMatches(): void {
   findMatches = [];
   findMatchIndex = -1;
+  findMatchesCapped = false;
   const query = findInputElement.value;
   if (!findSupported() || !textEditor || !query) {
     findStatusElement.textContent = query ? "无匹配" : "";
+    updateFindHighlights();
     return;
   }
-  const source = textEditor.getText();
-  const haystack = findCaseInput.checked ? source : source.toLocaleLowerCase();
-  const needle = findCaseInput.checked ? query : query.toLocaleLowerCase();
-  let offset = 0;
-  while (needle && offset <= haystack.length) {
-    const index = haystack.indexOf(needle, offset);
-    if (index < 0) break;
-    findMatches.push({ start: index, end: index + needle.length });
-    offset = index + Math.max(needle.length, 1);
-  }
-  findStatusElement.textContent = findMatches.length ? `${findMatches.length} 个匹配` : "无匹配";
+  findMatches = collectTextMatches(textEditor.getText(), query, findCaseInput.checked);
+  findMatchesCapped = findMatches.length >= MAX_FIND_MATCHES;
+  findStatusElement.textContent = findMatches.length
+    ? (findMatchesCapped ? `${MAX_FIND_MATCHES}+ 个匹配` : `${findMatches.length} 个匹配`)
+    : "无匹配";
+  updateFindHighlights();
 }
 
 function selectFindMatch(index: number): void {
@@ -1393,6 +1469,7 @@ function selectFindMatch(index: number): void {
   const match = findMatches[findMatchIndex];
   textEditor.selectRange(match);
   findStatusElement.textContent = `${findMatchIndex + 1} / ${findMatches.length}`;
+  updateFindHighlights();
 }
 
 function findNextMatch(direction: 1 | -1): void {
@@ -1434,6 +1511,8 @@ function closeFindBar(): void {
   findBarElement.classList.add("hidden");
   findMatches = [];
   findMatchIndex = -1;
+  findMatchesCapped = false;
+  updateFindHighlights();
 }
 
 function replaceCurrentMatch(): void {
@@ -1458,6 +1537,10 @@ function replaceAllMatches(): void {
   if (!findSupported() || !textEditor) return;
   refreshFindMatches();
   if (findMatches.length === 0) return;
+  if (findMatchesCapped) {
+    showToast(`匹配超过 ${MAX_FIND_MATCHES} 处，请缩小查询范围后再全部替换。`, true);
+    return;
+  }
   if (!window.confirm(`确认替换全部 ${findMatches.length} 个匹配？`)) return;
   const replacement = replaceInputElement.value;
   textEditor.replaceRanges(findMatches.map((match) => ({ from: match.start, to: match.end, insert: replacement })));
@@ -1508,7 +1591,7 @@ async function saveCurrent(): Promise<void> {
   const node = activeNode;
   const session = activeSession;
   const editor = textEditor;
-  const content = editor.getText();
+  const content = editor.toFileText();
   statusInfoElement.textContent = "保存中…";
   try {
     const metadata = await invoke<FileMetadata>("save_text_file", {
@@ -1544,14 +1627,20 @@ async function saveCurrent(): Promise<void> {
   }
 }
 
-function promptName(title: string, label: string, hint: string, callback: (name: string) => void): void {
+function promptName(title: string, label: string, hint: string, callback: (name: string) => void, initial = ""): void {
   nameTitleElement.textContent = title;
   nameLabelElement.textContent = label;
   nameHintElement.textContent = hint;
-  nameInputElement.value = "";
+  nameInputElement.value = initial;
   nameCallback = callback;
   nameOverlayElement.classList.remove("hidden");
-  window.setTimeout(() => nameInputElement.focus(), 0);
+  window.setTimeout(() => {
+    nameInputElement.focus();
+    // 改名时默认选中主名（不含最后一段扩展名），直接输入即可替换。
+    const dot = nameInputElement.value.lastIndexOf(".");
+    const end = dot > 0 ? dot : nameInputElement.value.length;
+    nameInputElement.setSelectionRange(0, end);
+  }, 0);
 }
 
 function closeNamePrompt(): void {
@@ -1570,7 +1659,7 @@ function closeHelp(): void {
 
 function openSettings(): void {
   textExtensionsInput.value = config.handlers.text.extensions.join(", ");
-  maxTextSizeInput.value = String(Math.max(1, config.editor.maxTextFileSizeMB));
+  maxTextSizeInput.value = String(Math.max(1, config.editor.maxTextFileSizeMb));
   confirmCloseInput.checked = config.editor.confirmBeforeCloseUnsaved;
   annotationEnabledInput.checked = config.annotations.enabled;
   restoreSessionInput.checked = config.workspace.restoreLastSession;
@@ -1584,7 +1673,7 @@ function openSettings(): void {
 
 function restoreSettingsDefaults(): void {
   textExtensionsInput.value = fallbackConfig.handlers.text.extensions.join(", ");
-  maxTextSizeInput.value = String(fallbackConfig.editor.maxTextFileSizeMB);
+  maxTextSizeInput.value = String(fallbackConfig.editor.maxTextFileSizeMb);
   confirmCloseInput.checked = fallbackConfig.editor.confirmBeforeCloseUnsaved;
   annotationEnabledInput.checked = fallbackConfig.annotations.enabled;
   restoreSessionInput.checked = fallbackConfig.workspace.restoreLastSession;
@@ -1655,7 +1744,7 @@ async function saveSettings(): Promise<void> {
     ...config,
     editor: {
       ...config.editor,
-      maxTextFileSizeMB: maxSize,
+      maxTextFileSizeMb: maxSize,
       confirmBeforeCloseUnsaved: confirmCloseInput.checked,
     },
     handlers: {
@@ -1804,6 +1893,7 @@ function renameNode(node: TreeNode): void {
     isFolder ? "新文件夹名" : "新文件名（含扩展名）",
     isFolder ? "只重命名当前文件夹，不删除内部文件。" : "只重命名当前文件；如存在伴生 qnote 会同步改名。",
     (name) => { void renameDocument(node, name); },
+    node.name,
   );
 }
 
@@ -2049,6 +2139,55 @@ async function restoreWorkspaceState(): Promise<void> {
   }
 }
 
+const SIDEBAR_WIDTH_KEY = "quickedit.sidebarWidth";
+const SIDEBAR_MIN_WIDTH = 200;
+const SIDEBAR_MAX_WIDTH = 560;
+
+function clampSidebarWidth(width: number): number {
+  const max = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(window.innerWidth * 0.45)));
+  return Math.min(Math.max(Math.round(width), SIDEBAR_MIN_WIDTH), max);
+}
+
+function applySidebarWidth(width: number): void {
+  document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
+}
+
+// 双击分隔条：清掉记忆值，回到样式表默认宽度。
+function resetSidebarWidth(): void {
+  window.localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+  document.documentElement.style.removeProperty("--sidebar-width");
+  terminalFeature.fit();
+}
+
+function bindSidebarResize(): void {
+  const stored = Number.parseInt(window.localStorage.getItem(SIDEBAR_WIDTH_KEY) || "", 10);
+  if (Number.isFinite(stored)) applySidebarWidth(clampSidebarWidth(stored));
+  let pointerX = 0;
+  let startWidth = 0;
+  let draggedWidth = 0;
+  const onMove = (event: MouseEvent): void => {
+    draggedWidth = clampSidebarWidth(startWidth + event.clientX - pointerX);
+    applySidebarWidth(draggedWidth);
+  };
+  const onUp = (): void => {
+    sidebarResizerElement.classList.remove("dragging");
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    if (draggedWidth) window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(draggedWidth));
+    terminalFeature.fit();
+  };
+  sidebarResizerElement.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    pointerX = event.clientX;
+    startWidth = sidebarResizerElement.parentElement?.getBoundingClientRect().width || 0;
+    draggedWidth = 0;
+    sidebarResizerElement.classList.add("dragging");
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
+  sidebarResizerElement.addEventListener("dblclick", resetSidebarWidth);
+}
+
 function bindEvents(): void {
   docMetaElement.addEventListener("click", () => void copyActivePath());
   logoButton.addEventListener("click", (event) => {
@@ -2183,6 +2322,16 @@ function bindEvents(): void {
       event.preventDefault();
       renameNode(activeNode);
     }
+    if (event.key === "F5") {
+      event.preventDefault();
+      void reloadNode(activeNode || roots.find((node) => node.kind === "workspace") || docsSection);
+      return;
+    }
+    if (event.altKey && !event.ctrlKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      event.preventDefault();
+      stepDocument(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       void saveCurrent();
@@ -2193,6 +2342,7 @@ function bindEvents(): void {
     terminalFeature.fit();
   });
   terminalFeature.bindEvents();
+  bindSidebarResize();
   reviewPanel.bind();
 }
 
